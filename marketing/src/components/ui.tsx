@@ -16,7 +16,7 @@ export function Container({
 
 export function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="font-mono text-xs uppercase tracking-[0.25em] text-safety">
+    <p className="font-mono text-xs uppercase tracking-[0.25em] text-accent-light">
       {children}
     </p>
   );

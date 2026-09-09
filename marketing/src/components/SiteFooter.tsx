@@ -37,7 +37,7 @@ export default function SiteFooter() {
               <li>
                 <Link
                   href="/services"
-                  className="text-sm font-medium text-accent transition-colors hover:text-safety"
+                  className="text-sm font-medium text-accent transition-colors hover:text-accent-light"
                 >
                   View all services →
                 </Link>

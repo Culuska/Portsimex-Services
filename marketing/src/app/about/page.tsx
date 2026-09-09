@@ -26,7 +26,7 @@ export default function AboutPage() {
       <section className="border-b border-ink-line bg-ink-raised">
         <Container className="grid grid-cols-1 gap-10 py-16 sm:py-20 md:grid-cols-2">
           <div className="rounded-sm border border-ink-line bg-ink p-8">
-            <span className="font-mono text-xs uppercase tracking-[0.25em] text-safety">
+            <span className="font-mono text-xs uppercase tracking-[0.25em] text-accent-light">
               Mission
             </span>
             <p className="mt-4 font-display text-xl font-bold leading-snug text-paper sm:text-2xl">
@@ -34,7 +34,7 @@ export default function AboutPage() {
             </p>
           </div>
           <div className="rounded-sm border border-ink-line bg-ink p-8">
-            <span className="font-mono text-xs uppercase tracking-[0.25em] text-safety">
+            <span className="font-mono text-xs uppercase tracking-[0.25em] text-accent-light">
               Vision
             </span>
             <p className="mt-4 font-display text-xl font-bold leading-snug text-paper sm:text-2xl">
@@ -53,7 +53,7 @@ export default function AboutPage() {
           <div className="mt-12 grid grid-cols-1 gap-10 sm:grid-cols-3">
             {values.map((value, i) => (
               <div key={value.name}>
-                <span className="font-mono text-xs text-safety">
+                <span className="font-mono text-xs text-accent-light">
                   0{i + 1}
                 </span>
                 <h3 className="mt-2 font-display text-2xl font-bold text-paper">

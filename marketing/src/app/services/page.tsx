@@ -33,7 +33,7 @@ export default function ServicesPage() {
           >
             <Container className="py-14 sm:py-16">
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[auto_1fr] lg:gap-12">
-                <span className="font-mono text-sm text-safety">
+                <span className="font-mono text-sm text-accent-light">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div className="max-w-2xl">

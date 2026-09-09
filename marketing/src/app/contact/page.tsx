@@ -21,18 +21,18 @@ export default function ContactPage() {
         <div className="mt-12 grid grid-cols-1 gap-12 lg:grid-cols-[1fr_1.3fr]">
           <div className="flex flex-col gap-8">
             <div>
-              <p className="font-mono text-xs uppercase tracking-[0.25em] text-safety">
+              <p className="font-mono text-xs uppercase tracking-[0.25em] text-accent-light">
                 Email
               </p>
               <a
                 href={`mailto:${contact.email}`}
-                className="mt-2 block font-display text-xl font-bold text-paper hover:text-safety"
+                className="mt-2 block font-display text-xl font-bold text-paper hover:text-accent-light"
               >
                 {contact.email}
               </a>
             </div>
             <div>
-              <p className="font-mono text-xs uppercase tracking-[0.25em] text-safety">
+              <p className="font-mono text-xs uppercase tracking-[0.25em] text-accent-light">
                 Phone
               </p>
               <div className="mt-2 flex flex-col gap-1">
@@ -40,7 +40,7 @@ export default function ContactPage() {
                   <a
                     key={phone}
                     href={`tel:${phone}`}
-                    className="font-mono text-lg text-paper hover:text-safety"
+                    className="font-mono text-lg text-paper hover:text-accent-light"
                   >
                     {phone}
                   </a>
@@ -48,7 +48,7 @@ export default function ContactPage() {
               </div>
             </div>
             <div>
-              <p className="font-mono text-xs uppercase tracking-[0.25em] text-safety">
+              <p className="font-mono text-xs uppercase tracking-[0.25em] text-accent-light">
                 Based in
               </p>
               <p className="mt-2 text-lg text-paper">{contact.region}</p>

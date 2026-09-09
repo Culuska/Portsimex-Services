@@ -65,7 +65,7 @@ export default function Home() {
             </div>
             <Link
               href="/services"
-              className="text-sm font-semibold text-accent hover:text-safety"
+              className="text-sm font-semibold text-accent hover:text-accent-light"
             >
               All services →
             </Link>
@@ -84,7 +84,7 @@ export default function Home() {
                 <p className="mt-2 text-sm leading-relaxed text-paper-dim">
                   {service.short}
                 </p>
-                <span className="mt-4 inline-block text-sm font-semibold text-accent group-hover:text-safety">
+                <span className="mt-4 inline-block text-sm font-semibold text-accent group-hover:text-accent-light">
                   Learn more →
                 </span>
               </Link>
@@ -115,7 +115,7 @@ export default function Home() {
           <div className="mt-10 grid grid-cols-1 gap-8 sm:grid-cols-3">
             {values.map((value, i) => (
               <div key={value.name}>
-                <span className="font-mono text-xs text-safety">
+                <span className="font-mono text-xs text-accent-light">
                   0{i + 1}
                 </span>
                 <h3 className="mt-2 font-display text-xl font-bold text-paper">
@@ -171,7 +171,7 @@ export default function Home() {
               <div className="flex flex-col gap-3 sm:items-end">
                 <a
                   href={`mailto:${contact.email}`}
-                  className="text-sm font-semibold text-paper hover:text-safety"
+                  className="text-sm font-semibold text-paper hover:text-accent-light"
                 >
                   {contact.email}
                 </a>

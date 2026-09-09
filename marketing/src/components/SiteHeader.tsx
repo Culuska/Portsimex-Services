@@ -44,7 +44,7 @@ export default function SiteHeader() {
               href={link.href}
               className={`text-sm font-medium tracking-wide transition-colors ${
                 pathname === link.href
-                  ? "text-safety"
+                  ? "text-accent-light"
                   : "text-paper-dim hover:text-paper"
               }`}
             >
@@ -82,7 +82,7 @@ export default function SiteHeader() {
                   onClick={() => setOpen(false)}
                   className={`block rounded-sm px-3 py-2.5 text-base font-medium ${
                     pathname === link.href
-                      ? "bg-ink-raised text-safety"
+                      ? "bg-ink-raised text-accent-light"
                       : "text-paper-dim"
                   }`}
                 >
