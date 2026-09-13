@@ -20,6 +20,7 @@ export default function ClientForm({
     phone: string | null;
     address: string | null;
     notes: string | null;
+    stage?: string;
   };
   submitLabel: string;
 }) {
@@ -39,6 +40,24 @@ export default function ClientForm({
           className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
+      {defaultValues && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor="stage" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Relationship stage
+          </label>
+          <select
+            id="stage"
+            name="stage"
+            defaultValue={defaultValues?.stage ?? "ACTIVE"}
+            className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="PROSPECT">Prospect</option>
+            <option value="ACTIVE">Active</option>
+            <option value="DORMANT">Dormant</option>
+            <option value="LOST">Lost</option>
+          </select>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="email" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">

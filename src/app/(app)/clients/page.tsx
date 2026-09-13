@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
+import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 
 export default async function ClientsPage() {
   const clients = await prisma.client.findMany({
@@ -23,6 +23,7 @@ export default async function ClientsPage() {
             <thead className="border-b border-zinc-200 dark:border-zinc-800 text-zinc-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Name</th>
+                <th className="px-4 py-3 font-medium">Stage</th>
                 <th className="px-4 py-3 font-medium">Contact</th>
                 <th className="px-4 py-3 font-medium">Shipments</th>
                 <th className="px-4 py-3 font-medium">Invoices</th>
@@ -38,6 +39,9 @@ export default async function ClientsPage() {
                     >
                       {c.name}
                     </Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge status={c.stage} />
                   </td>
                   <td className="px-4 py-3 text-zinc-500">
                     {c.email || c.phone || "—"}

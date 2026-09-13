@@ -1,0 +1,31 @@
+import { prisma } from "@/lib/prisma";
+import { PageHeader } from "@/components/ui";
+import PurchaseRequestForm from "../PurchaseRequestForm";
+
+export default async function NewPurchaseRequestPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ shipmentId?: string }>;
+}) {
+  const { shipmentId } = await searchParams;
+  const [vendors, shipments, categories] = await Promise.all([
+    prisma.vendor.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.shipment.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, reference: true },
+    }),
+    prisma.expenseCategory.findMany({ orderBy: { name: "asc" } }),
+  ]);
+
+  return (
+    <div>
+      <PageHeader title="New purchase request" />
+      <PurchaseRequestForm
+        vendors={vendors}
+        shipments={shipments}
+        categories={categories}
+        defaultShipmentId={shipmentId}
+      />
+    </div>
+  );
+}

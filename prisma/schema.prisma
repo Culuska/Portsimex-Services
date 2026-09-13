@@ -51,6 +51,27 @@ enum PaymentMethod {
   OTHER
 }
 
+enum ClientStage {
+  PROSPECT
+  ACTIVE
+  DORMANT
+  LOST
+}
+
+enum PurchaseRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -62,23 +83,59 @@ model User {
 
   shipments Shipment[] @relation("ShipmentAssignee")
 
+  clientNotes             ClientNote[]
+  purchaseRequests        PurchaseRequest[] @relation("PurchaseRequestRequestedBy")
+  decidedPurchaseRequests PurchaseRequest[] @relation("PurchaseRequestDecidedBy")
+
   @@map("users")
 }
 
 model Client {
-  id        String   @id @default(cuid())
+  id        String      @id @default(cuid())
   name      String
   email     String?
   phone     String?
   address   String?
   notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  stage     ClientStage @default(ACTIVE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
 
   shipments Shipment[]
   invoices  Invoice[]
+  quotes    Quote[]
+
+  clientNotes ClientNote[]
+  followUps   ClientFollowUp[]
 
   @@map("clients")
+}
+
+model ClientNote {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  author   User?   @relation(fields: [authorId], references: [id])
+  authorId String?
+
+  @@map("client_notes")
+}
+
+model ClientFollowUp {
+  id        String   @id @default(cuid())
+  dueDate   DateTime
+  note      String
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  @@map("client_follow_ups")
 }
 
 model Vendor {
@@ -92,7 +149,8 @@ model Vendor {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  expenses Expense[]
+  expenses         Expense[]
+  purchaseRequests PurchaseRequest[]
 
   @@map("vendors")
 }
@@ -118,8 +176,10 @@ model Shipment {
   assignee   User?   @relation("ShipmentAssignee", fields: [assigneeId], references: [id])
   assigneeId String?
 
-  invoices Invoice[]
-  expenses Expense[]
+  invoices         Invoice[]
+  expenses         Expense[]
+  quotes           Quote[]
+  purchaseRequests PurchaseRequest[]
 
   @@map("shipments")
 }
@@ -139,6 +199,9 @@ model Invoice {
 
   shipment   Shipment? @relation(fields: [shipmentId], references: [id])
   shipmentId String?
+
+  quote   Quote?  @relation(fields: [quoteId], references: [id])
+  quoteId String? @unique
 
   items    InvoiceItem[]
   payments Payment[]
@@ -176,7 +239,8 @@ model ExpenseCategory {
   id   String @id @default(cuid())
   name String @unique
 
-  expenses Expense[]
+  expenses         Expense[]
+  purchaseRequests PurchaseRequest[]
 
   @@map("expense_categories")
 }
@@ -200,5 +264,74 @@ model Expense {
   shipment   Shipment? @relation(fields: [shipmentId], references: [id])
   shipmentId String?
 
+  purchaseRequest PurchaseRequest?
+
   @@map("expenses")
+}
+
+model PurchaseRequest {
+  id            String                @id @default(cuid())
+  requestNumber String                @unique
+  description   String
+  amount        Decimal               @db.Decimal(12, 2)
+  status        PurchaseRequestStatus @default(PENDING)
+  notes         String?
+  requestedAt   DateTime              @default(now())
+  decidedAt     DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  category   ExpenseCategory @relation(fields: [categoryId], references: [id])
+  categoryId String
+
+  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+  vendorId String?
+
+  shipment   Shipment? @relation(fields: [shipmentId], references: [id])
+  shipmentId String?
+
+  requestedBy   User   @relation("PurchaseRequestRequestedBy", fields: [requestedById], references: [id])
+  requestedById String
+
+  decidedBy   User?   @relation("PurchaseRequestDecidedBy", fields: [decidedById], references: [id])
+  decidedById String?
+
+  expense   Expense? @relation(fields: [expenseId], references: [id])
+  expenseId String?  @unique
+
+  @@map("purchase_requests")
+}
+
+model Quote {
+  id          String      @id @default(cuid())
+  quoteNumber String      @unique
+  status      QuoteStatus @default(DRAFT)
+  issueDate   DateTime    @default(now())
+  expiryDate  DateTime?
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  shipment   Shipment? @relation(fields: [shipmentId], references: [id])
+  shipmentId String?
+
+  items   QuoteItem[]
+  invoice Invoice?
+
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          String  @id @default(cuid())
+  description String
+  quantity    Decimal @default(1) @db.Decimal(12, 2)
+  unitPrice   Decimal @db.Decimal(12, 2)
+
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quoteId String
+
+  @@map("quote_items")
 }

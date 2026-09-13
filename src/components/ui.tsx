@@ -89,6 +89,14 @@ const badgeColors: Record<string, string> = {
   PARTIALLY_PAID: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   PAID: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   OVERDUE: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  APPROVED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  REJECTED: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  ACCEPTED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  EXPIRED: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
+  PROSPECT: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  ACTIVE: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  DORMANT: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  LOST: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
 };
 
 export function Badge({ status }: { status: string }) {

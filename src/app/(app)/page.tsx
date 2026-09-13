@@ -5,32 +5,44 @@ import { invoiceBalance } from "@/lib/invoices";
 import { Badge, Card, EmptyState, PageHeader, StatCard } from "@/components/ui";
 
 export default async function DashboardPage() {
-  const [shipments, invoices, expensePaidAgg, expensePendingAgg, paymentAgg, shipmentStatusCounts] =
-    await Promise.all([
-      prisma.shipment.findMany({
-        orderBy: { updatedAt: "desc" },
-        take: 6,
-        include: { client: true },
-      }),
-      prisma.invoice.findMany({
-        where: { status: { notIn: ["DRAFT", "CANCELLED"] } },
-        include: { items: true, payments: true, client: true },
-        orderBy: { issueDate: "desc" },
-      }),
-      prisma.expense.aggregate({
-        where: { status: "PAID" },
-        _sum: { amount: true },
-      }),
-      prisma.expense.aggregate({
-        where: { status: "PENDING" },
-        _sum: { amount: true },
-      }),
-      prisma.payment.aggregate({ _sum: { amount: true } }),
-      prisma.shipment.groupBy({
-        by: ["status"],
-        _count: { _all: true },
-      }),
-    ]);
+  const [
+    shipments,
+    invoices,
+    expensePaidAgg,
+    expensePendingAgg,
+    paymentAgg,
+    shipmentStatusCounts,
+    pendingPurchaseRequests,
+  ] = await Promise.all([
+    prisma.shipment.findMany({
+      orderBy: { updatedAt: "desc" },
+      take: 6,
+      include: { client: true },
+    }),
+    prisma.invoice.findMany({
+      where: { status: { notIn: ["DRAFT", "CANCELLED"] } },
+      include: { items: true, payments: true, client: true },
+      orderBy: { issueDate: "desc" },
+    }),
+    prisma.expense.aggregate({
+      where: { status: "PAID" },
+      _sum: { amount: true },
+    }),
+    prisma.expense.aggregate({
+      where: { status: "PENDING" },
+      _sum: { amount: true },
+    }),
+    prisma.payment.aggregate({ _sum: { amount: true } }),
+    prisma.shipment.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+    }),
+    prisma.purchaseRequest.findMany({
+      where: { status: "PENDING" },
+      orderBy: { requestedAt: "asc" },
+      include: { requestedBy: true },
+    }),
+  ]);
 
   const activeShipments = shipmentStatusCounts
     .filter((s) => s.status !== "COMPLETED" && s.status !== "CANCELLED")
@@ -54,7 +66,7 @@ export default async function DashboardPage() {
         description="Combined view of operations and finances"
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="Active shipments" value={String(activeShipments)} />
         <StatCard label="Revenue collected" value={formatCurrency(totalRevenue)} />
         <StatCard
@@ -66,6 +78,17 @@ export default async function DashboardPage() {
           label="Net profit"
           value={formatCurrency(profit)}
           hint={outstanding > 0 ? `${formatCurrency(outstanding)} outstanding` : undefined}
+        />
+        <StatCard
+          label="Pending approvals"
+          value={String(pendingPurchaseRequests.length)}
+          hint={
+            pendingPurchaseRequests.length > 0
+              ? `${formatCurrency(
+                  pendingPurchaseRequests.reduce((sum, pr) => sum + Number(pr.amount), 0),
+                )} requested`
+              : undefined
+          }
         />
       </div>
 
@@ -136,6 +159,44 @@ export default async function DashboardPage() {
           )}
         </Card>
       </div>
+
+      {pendingPurchaseRequests.length > 0 && (
+        <div className="mt-6">
+          <Card>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                Needs approval
+              </h2>
+              <Link
+                href="/purchase-requests"
+                className="text-sm text-blue-600 hover:underline"
+              >
+                View all
+              </Link>
+            </div>
+            <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">
+              {pendingPurchaseRequests.map((pr) => (
+                <li key={pr.id} className="flex items-center justify-between py-3">
+                  <div>
+                    <Link
+                      href={`/purchase-requests/${pr.id}`}
+                      className="text-sm font-medium text-zinc-900 hover:underline dark:text-zinc-50"
+                    >
+                      {pr.requestNumber}
+                    </Link>
+                    <p className="text-xs text-zinc-500">
+                      {pr.description} · requested by {pr.requestedBy.name}
+                    </p>
+                  </div>
+                  <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                    {formatCurrency(pr.amount.toString())}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

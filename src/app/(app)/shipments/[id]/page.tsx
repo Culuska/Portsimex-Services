@@ -21,6 +21,8 @@ export default async function ShipmentDetailPage({
         assignee: true,
         invoices: { include: { items: true, payments: true } },
         expenses: { include: { category: true, vendor: true } },
+        quotes: { include: { items: true } },
+        purchaseRequests: { include: { category: true } },
       },
     }),
     prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -66,6 +68,40 @@ export default async function ShipmentDetailPage({
         </Card>
 
         <div className="flex flex-col gap-6">
+          <Card>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Quotes</h2>
+              <Link
+                href={`/quotes/new?shipmentId=${shipment.id}`}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                New quote
+              </Link>
+            </div>
+            {shipment.quotes.length === 0 ? (
+              <EmptyState message="No quotes linked to this shipment." />
+            ) : (
+              <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">
+                {shipment.quotes.map((q) => (
+                  <li key={q.id} className="flex items-center justify-between py-2">
+                    <div>
+                      <Link
+                        href={`/quotes/${q.id}`}
+                        className="text-sm font-medium text-zinc-900 hover:underline dark:text-zinc-50"
+                      >
+                        {q.quoteNumber}
+                      </Link>
+                      <p className="text-xs text-zinc-500">
+                        {formatCurrency(invoiceTotal(q.items))}
+                      </p>
+                    </div>
+                    <Badge status={q.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
           <Card>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Invoices</h2>
@@ -130,6 +166,40 @@ export default async function ShipmentDetailPage({
                     <span className="text-sm text-zinc-700 dark:text-zinc-300">
                       {formatCurrency(e.amount.toString())}
                     </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                Purchase Requests
+              </h2>
+              <Link
+                href={`/purchase-requests/new?shipmentId=${shipment.id}`}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                New request
+              </Link>
+            </div>
+            {shipment.purchaseRequests.length === 0 ? (
+              <EmptyState message="No purchase requests linked to this shipment." />
+            ) : (
+              <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">
+                {shipment.purchaseRequests.map((pr) => (
+                  <li key={pr.id} className="flex items-center justify-between py-2">
+                    <div>
+                      <Link
+                        href={`/purchase-requests/${pr.id}`}
+                        className="text-sm font-medium text-zinc-900 hover:underline dark:text-zinc-50"
+                      >
+                        {pr.requestNumber}
+                      </Link>
+                      <p className="text-xs text-zinc-500">{pr.category.name}</p>
+                    </div>
+                    <Badge status={pr.status} />
                   </li>
                 ))}
               </ul>
