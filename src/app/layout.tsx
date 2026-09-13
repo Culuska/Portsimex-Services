@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Portsimex Ops & Finance",
+  title: "SAAD",
   description: "Operational and financial tracking for Portsimex Services",
 };
 

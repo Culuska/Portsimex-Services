@@ -21,7 +21,7 @@ export default async function AppLayout({
         <div>
           <div className="px-3 pb-6">
             <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              Portsimex
+              SAAD
             </p>
             <p className="text-xs text-zinc-500">Ops &amp; Finance</p>
           </div>
