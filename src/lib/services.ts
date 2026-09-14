@@ -39,10 +39,27 @@ export const FLAT_SERVICE_TYPES: readonly ServiceType[] = [
   "EMPLOYMENT_PAYMENT",
 ];
 
-export const AGREEMENT_TYPES = ["CLOSED", "NON_DISCLOSED"] as const;
+export const AGREEMENT_TYPES = [
+  "SERVICE_AGREEMENT",
+  "FREIGHT_FORWARDING",
+  "NON_DISCLOSED",
+  "RATE_AGREEMENT",
+  "CUSTOMS_BROKERAGE",
+  "WAREHOUSING",
+  "AGENCY",
+  "OPEN_ACCOUNT",
+  "CLOSED",
+] as const;
 export type AgreementType = (typeof AGREEMENT_TYPES)[number];
 
 export const AGREEMENT_TYPE_LABELS: Record<AgreementType, string> = {
-  CLOSED: "Closed Agreement",
-  NON_DISCLOSED: "Non-Disclosed Agreement",
+  SERVICE_AGREEMENT: "Service Agreement (MSA)",
+  FREIGHT_FORWARDING: "Freight Forwarding Agreement",
+  NON_DISCLOSED: "Non-Disclosed Agreement (NDA)",
+  RATE_AGREEMENT: "Rate Agreement",
+  CUSTOMS_BROKERAGE: "Customs Brokerage Agreement",
+  WAREHOUSING: "Warehousing Agreement",
+  AGENCY: "Agency Agreement",
+  OPEN_ACCOUNT: "Open Account Agreement",
+  CLOSED: "Closed Account Agreement",
 };
