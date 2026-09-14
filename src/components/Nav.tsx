@@ -14,7 +14,13 @@ const links = [
   { href: "/vendors", label: "Vendors" },
 ];
 
-export default function Nav({ isAdmin }: { isAdmin: boolean }) {
+export default function Nav({
+  isAdmin,
+  onNavigate,
+}: {
+  isAdmin: boolean;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const items = isAdmin ? [...links, { href: "/users", label: "Users" }] : links;
 
@@ -27,6 +33,7 @@ export default function Nav({ isAdmin }: { isAdmin: boolean }) {
           <Link
             key={item.href}
             href={item.href}
+            onClick={onNavigate}
             className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
               active
                 ? "bg-brand-600 text-white"

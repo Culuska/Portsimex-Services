@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import Nav from "@/components/Nav";
 import SignOutButton from "@/components/SignOutButton";
+import MobileMenu from "@/components/MobileMenu";
 
 export default async function AppLayout({
   children,
@@ -16,7 +17,12 @@ export default async function AppLayout({
   const isAdmin = session.user.role === "ADMIN";
 
   return (
-    <div className="flex flex-1 bg-zinc-50 dark:bg-black">
+    <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black sm:flex-row">
+      <MobileMenu
+        isAdmin={isAdmin}
+        userName={session.user.name}
+        userRole={session.user.role}
+      />
       <aside className="hidden w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 sm:flex sm:flex-col sm:justify-between">
         <div>
           <div className="px-3 pb-6">
