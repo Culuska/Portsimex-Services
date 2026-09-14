@@ -41,7 +41,18 @@ export default async function QuoteDetailPage({
       <PageHeader
         title={quote.quoteNumber}
         description={`${quote.client.name}${quote.shipment ? ` · ${quote.shipment.reference}` : ""}`}
-        action={<Badge status={quote.status} />}
+        action={
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/quotes/${quote.id}/print`}
+              target="_blank"
+              className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              Preview / Print
+            </Link>
+            <Badge status={quote.status} />
+          </div>
+        }
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Badge, Card, PageHeader } from "@/components/ui";
@@ -44,7 +45,18 @@ export default async function InvoiceDetailPage({
       <PageHeader
         title={invoice.invoiceNumber}
         description={`${invoice.client.name}${invoice.shipment ? ` · ${invoice.shipment.reference}` : ""}`}
-        action={<Badge status={invoice.status} />}
+        action={
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/invoices/${invoice.id}/print`}
+              target="_blank"
+              className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              Preview / Print
+            </Link>
+            <Badge status={invoice.status} />
+          </div>
+        }
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
