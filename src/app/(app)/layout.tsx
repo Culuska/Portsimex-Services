@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import Nav from "@/components/Nav";
 import SignOutButton from "@/components/SignOutButton";
+import { Logo } from "@/components/Logo";
 
 export default async function AppLayout({
   children,
@@ -20,10 +21,8 @@ export default async function AppLayout({
       <aside className="hidden w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 sm:flex sm:flex-col sm:justify-between">
         <div>
           <div className="px-3 pb-6">
-            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              SAAD
-            </p>
-            <p className="text-xs text-zinc-500">Ops &amp; Finance</p>
+            <Logo size="sm" stacked />
+            <p className="mt-2 text-xs text-zinc-500">Ops &amp; Finance</p>
           </div>
           <Nav isAdmin={isAdmin} />
         </div>

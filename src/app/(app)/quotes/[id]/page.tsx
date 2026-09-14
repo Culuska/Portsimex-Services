@@ -84,7 +84,7 @@ export default async function QuoteDetailPage({
               </tbody>
             </table>
             <div className="mt-4 flex justify-end border-t border-zinc-100 dark:border-zinc-800 pt-3 text-sm">
-              <p className="font-semibold text-zinc-900 dark:text-zinc-50">
+              <p className="font-semibold text-brand">
                 Total: {formatCurrency(total)}
               </p>
             </div>
@@ -103,7 +103,7 @@ export default async function QuoteDetailPage({
               <select
                 name="status"
                 defaultValue={quote.status}
-                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
               >
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
@@ -147,7 +147,7 @@ export default async function QuoteDetailPage({
               <form action={boundConvert}>
                 <button
                   type="submit"
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
                 >
                   Create invoice from this quote
                 </button>

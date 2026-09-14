@@ -37,7 +37,7 @@ export default function VendorForm({
           name="name"
           required
           defaultValue={defaultValues?.name}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -49,7 +49,7 @@ export default function VendorForm({
           name="service"
           placeholder="Trucking, customs brokerage, port fees..."
           defaultValue={defaultValues?.service ?? ""}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -62,7 +62,7 @@ export default function VendorForm({
             name="email"
             type="email"
             defaultValue={defaultValues?.email ?? ""}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -73,7 +73,7 @@ export default function VendorForm({
             id="phone"
             name="phone"
             defaultValue={defaultValues?.phone ?? ""}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
           />
         </div>
       </div>
@@ -85,7 +85,7 @@ export default function VendorForm({
           id="address"
           name="address"
           defaultValue={defaultValues?.address ?? ""}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -97,7 +97,7 @@ export default function VendorForm({
           name="notes"
           rows={3}
           defaultValue={defaultValues?.notes ?? ""}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
       {state.error && (
@@ -106,7 +106,7 @@ export default function VendorForm({
       <button
         type="submit"
         disabled={pending}
-        className="mt-2 w-fit rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+        className="mt-2 w-fit rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
       >
         {pending ? "Saving..." : submitLabel}
       </button>

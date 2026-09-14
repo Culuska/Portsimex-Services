@@ -21,7 +21,7 @@ export default function LoginForm({ callbackUrl }: { callbackUrl: string }) {
           type="email"
           required
           autoComplete="email"
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -34,7 +34,7 @@ export default function LoginForm({ callbackUrl }: { callbackUrl: string }) {
           type="password"
           required
           autoComplete="current-password"
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
       {state.error && (
@@ -43,7 +43,7 @@ export default function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="mt-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+        className="mt-2 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
       >
         {pending ? "Signing in..." : "Sign in"}
       </button>

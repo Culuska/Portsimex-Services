@@ -73,7 +73,7 @@ export default async function ShipmentDetailPage({
               <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Quotes</h2>
               <Link
                 href={`/quotes/new?shipmentId=${shipment.id}`}
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-brand hover:underline"
               >
                 New quote
               </Link>
@@ -107,7 +107,7 @@ export default async function ShipmentDetailPage({
               <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Invoices</h2>
               <Link
                 href={`/invoices/new?shipmentId=${shipment.id}`}
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-brand hover:underline"
               >
                 New invoice
               </Link>
@@ -141,7 +141,7 @@ export default async function ShipmentDetailPage({
               <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Expenses</h2>
               <Link
                 href={`/expenses/new?shipmentId=${shipment.id}`}
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-brand hover:underline"
               >
                 New expense
               </Link>
@@ -179,7 +179,7 @@ export default async function ShipmentDetailPage({
               </h2>
               <Link
                 href={`/purchase-requests/new?shipmentId=${shipment.id}`}
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-brand hover:underline"
               >
                 New request
               </Link>

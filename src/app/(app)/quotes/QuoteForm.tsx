@@ -121,7 +121,7 @@ export default function QuoteForm({
             required
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
           >
             <option value="">Select a client</option>
             {clients.map((c) => (
@@ -139,7 +139,7 @@ export default function QuoteForm({
             id="shipmentId"
             name="shipmentId"
             defaultValue={defaultShipmentId ?? ""}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
           >
             <option value="">None</option>
             {shipments.map((s) => (
@@ -160,7 +160,7 @@ export default function QuoteForm({
           name="expiryDate"
           type="date"
           defaultValue={defaultExpiryDate}
-          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
 
@@ -211,7 +211,7 @@ export default function QuoteForm({
                 required
                 value={item.serviceType}
                 onChange={(e) => updateItem(index, "serviceType", e.target.value)}
-                className="w-40 shrink-0 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-40 shrink-0 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
               >
                 <option value="">Service…</option>
                 <optgroup label="Rate-based">
@@ -235,7 +235,7 @@ export default function QuoteForm({
                 required
                 value={item.description}
                 onChange={(e) => updateItem(index, "description", e.target.value)}
-                className="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
               />
               <input
                 name="quantity[]"
@@ -245,7 +245,7 @@ export default function QuoteForm({
                 required
                 value={item.quantity}
                 onChange={(e) => updateItem(index, "quantity", e.target.value)}
-                className="w-20 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-20 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
               />
               <input
                 name="unitPrice[]"
@@ -256,7 +256,7 @@ export default function QuoteForm({
                 placeholder="Unit price"
                 value={item.unitPrice}
                 onChange={(e) => updateItem(index, "unitPrice", e.target.value)}
-                className="w-28 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-28 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
               />
               <button
                 type="button"
@@ -272,7 +272,7 @@ export default function QuoteForm({
         <button
           type="button"
           onClick={addItem}
-          className="mt-2 text-sm text-blue-600 hover:underline"
+          className="mt-2 text-sm text-brand hover:underline"
         >
           + Add line item
         </button>
@@ -289,7 +289,7 @@ export default function QuoteForm({
           id="notes"
           name="notes"
           rows={2}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
 
@@ -299,7 +299,7 @@ export default function QuoteForm({
       <button
         type="submit"
         disabled={pending}
-        className="mt-2 w-fit rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+        className="mt-2 w-fit rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
       >
         {pending ? "Saving..." : "Create quote"}
       </button>

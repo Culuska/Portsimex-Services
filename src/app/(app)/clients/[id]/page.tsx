@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
-import { formatDate } from "@/lib/format";
+import { Badge, Card, EmptyState, PageHeader, StatCard } from "@/components/ui";
+import { formatCurrency, formatDate } from "@/lib/format";
+import { invoiceBalance, invoiceTotal } from "@/lib/invoices";
 import { AGREEMENT_TYPE_LABELS, SERVICE_TYPE_LABELS } from "@/lib/services";
 import ClientForm from "../ClientForm";
 import NoteForm from "../NoteForm";
@@ -19,7 +20,10 @@ export default async function ClientDetailPage({
     where: { id },
     include: {
       shipments: { orderBy: { createdAt: "desc" } },
-      invoices: { orderBy: { issueDate: "desc" } },
+      invoices: {
+        orderBy: { issueDate: "desc" },
+        include: { items: true, payments: true },
+      },
       quotes: { orderBy: { issueDate: "desc" } },
       clientNotes: { orderBy: { createdAt: "desc" }, include: { author: true } },
       followUps: { orderBy: { dueDate: "asc" } },
@@ -34,6 +38,27 @@ export default async function ClientDetailPage({
     client.serviceRates.map((r) => [r.serviceType, r.markupPercent.toString()]),
   );
 
+  const activeShipments = client.shipments.filter(
+    (s) => s.status !== "COMPLETED" && s.status !== "CANCELLED",
+  ).length;
+
+  const billableInvoices = client.invoices.filter(
+    (inv) => inv.status !== "DRAFT" && inv.status !== "CANCELLED",
+  );
+  const totalInvoiced = billableInvoices.reduce(
+    (sum, inv) => sum + invoiceTotal(inv.items),
+    0,
+  );
+  const outstandingBalance = billableInvoices.reduce(
+    (sum, inv) => sum + Math.max(invoiceBalance(inv.items, inv.payments), 0),
+    0,
+  );
+
+  const decidedQuotes = client.quotes.filter(
+    (q) => q.status === "ACCEPTED" || q.status === "REJECTED",
+  );
+  const acceptedQuotes = client.quotes.filter((q) => q.status === "ACCEPTED").length;
+
   return (
     <div>
       <PageHeader
@@ -41,6 +66,28 @@ export default async function ClientDetailPage({
         description="Client details"
         action={<Badge status={client.stage} />}
       />
+
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Active shipments"
+          value={String(activeShipments)}
+          hint={`${client.shipments.length} total`}
+        />
+        <StatCard label="Total invoiced" value={formatCurrency(totalInvoiced)} />
+        <StatCard
+          label="Outstanding balance"
+          value={formatCurrency(outstandingBalance)}
+        />
+        <StatCard
+          label="Quotes accepted"
+          value={`${acceptedQuotes}/${client.quotes.length}`}
+          hint={
+            decidedQuotes.length > 0
+              ? `${Math.round((acceptedQuotes / decidedQuotes.length) * 100)}% win rate`
+              : undefined
+          }
+        />
+      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
@@ -50,7 +97,17 @@ export default async function ClientDetailPage({
             </h2>
             <ClientForm
               action={boundUpdate}
-              defaultValues={{ ...client, serviceRates }}
+              defaultValues={{
+                name: client.name,
+                email: client.email,
+                phone: client.phone,
+                address: client.address,
+                notes: client.notes,
+                stage: client.stage,
+                agreementType: client.agreementType,
+                services: client.services,
+                serviceRates,
+              }}
               submitLabel="Save changes"
             />
           </Card>
