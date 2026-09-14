@@ -48,7 +48,7 @@ export default function ExpenseForm({
           name="description"
           required
           defaultValue={defaultValues?.description}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
 
@@ -65,7 +65,7 @@ export default function ExpenseForm({
             step="0.01"
             required
             defaultValue={defaultValues?.amount}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -78,7 +78,7 @@ export default function ExpenseForm({
             type="date"
             required
             defaultValue={incurredAtValue}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
           />
         </div>
       </div>
@@ -93,7 +93,7 @@ export default function ExpenseForm({
           list="category-options"
           required
           defaultValue={defaultValues?.categoryName}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
         />
         <datalist id="category-options">
           {categories.map((c) => (
@@ -111,7 +111,7 @@ export default function ExpenseForm({
             id="vendorId"
             name="vendorId"
             defaultValue={defaultValues?.vendorId ?? ""}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
           >
             <option value="">None</option>
             {vendors.map((v) => (
@@ -129,7 +129,7 @@ export default function ExpenseForm({
             id="shipmentId"
             name="shipmentId"
             defaultValue={defaultValues?.shipmentId ?? ""}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
           >
             <option value="">None</option>
             {shipments.map((s) => (
@@ -149,7 +149,7 @@ export default function ExpenseForm({
           id="status"
           name="status"
           defaultValue={defaultValues?.status ?? "PENDING"}
-          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
         >
           <option value="PENDING">Pending</option>
           <option value="PAID">Paid</option>
@@ -162,7 +162,7 @@ export default function ExpenseForm({
       <button
         type="submit"
         disabled={pending}
-        className="mt-2 w-fit rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+        className="mt-2 w-fit rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
       >
         {pending ? "Saving..." : submitLabel}
       </button>

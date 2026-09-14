@@ -89,7 +89,7 @@ export default async function InvoiceDetailPage({
               <p className="text-zinc-500">
                 Paid: {formatCurrency(total - Math.max(balance, 0))}
               </p>
-              <p className="font-semibold text-zinc-900 dark:text-zinc-50">
+              <p className="font-semibold text-brand">
                 Balance: {formatCurrency(Math.max(balance, 0))}
               </p>
             </div>
@@ -108,7 +108,7 @@ export default async function InvoiceDetailPage({
               <select
                 name="status"
                 defaultValue={invoice.status}
-                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
               >
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
