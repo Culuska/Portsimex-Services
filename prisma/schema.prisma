@@ -114,7 +114,6 @@ model Client {
   address       String?
   notes         String?
   stage         ClientStage    @default(ACTIVE)
-  markupPercent Decimal        @default(0) @db.Decimal(5, 2)
   agreementType AgreementType?
   services      ServiceType[]
   createdAt     DateTime       @default(now())
@@ -124,11 +123,24 @@ model Client {
   invoices         Invoice[]
   quotes           Quote[]
   purchaseRequests PurchaseRequest[]
+  serviceRates     ClientServiceRate[]
 
   clientNotes ClientNote[]
   followUps   ClientFollowUp[]
 
   @@map("clients")
+}
+
+model ClientServiceRate {
+  id            String      @id @default(cuid())
+  serviceType   ServiceType
+  markupPercent Decimal     @db.Decimal(5, 2)
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  @@unique([clientId, serviceType])
+  @@map("client_service_rates")
 }
 
 model ClientNote {

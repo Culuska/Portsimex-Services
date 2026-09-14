@@ -22,7 +22,11 @@ export default function QuoteForm({
   purchaseRequests,
   defaultShipmentId,
 }: {
-  clients: { id: string; name: string; markupPercent: string }[];
+  clients: {
+    id: string;
+    name: string;
+    serviceRates: { serviceType: string; markupPercent: string }[];
+  }[];
   shipments: { id: string; reference: string; clientId: string }[];
   purchaseRequests: {
     id: string;
@@ -71,13 +75,19 @@ export default function QuoteForm({
     (pr) => pr.clientId === clientId && !linkedPurchaseRequestIds.has(pr.id),
   );
 
+  function rateFor(serviceType: string | null) {
+    return Number(
+      selectedClient?.serviceRates.find((r) => r.serviceType === serviceType)?.markupPercent ?? 0,
+    );
+  }
+
   function addPurchaseRequest(pr: {
     id: string;
     description: string;
     amount: string;
     serviceType: string | null;
   }) {
-    const markupPercent = Number(selectedClient?.markupPercent ?? 0);
+    const markupPercent = rateFor(pr.serviceType);
     const billable = Number(pr.amount) * (1 + markupPercent / 100);
     setItems((prev) => {
       const blank = prev.length === 1 && !prev[0].description ? prev.slice(1) : prev;
@@ -161,7 +171,7 @@ export default function QuoteForm({
           </p>
           <ul className="flex flex-col gap-2">
             {availablePurchaseRequests.map((pr) => {
-              const markupPercent = Number(selectedClient?.markupPercent ?? 0);
+              const markupPercent = rateFor(pr.serviceType);
               const billable = Number(pr.amount) * (1 + markupPercent / 100);
               return (
                 <li key={pr.id} className="flex items-center justify-between gap-2 text-sm">

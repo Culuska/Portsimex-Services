@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { SERVICE_TYPES, AGREEMENT_TYPES } from "@/lib/services";
+import { SERVICE_TYPES, RATE_BASED_SERVICE_TYPES, AGREEMENT_TYPES } from "@/lib/services";
 
 const clientStages = ["PROSPECT", "ACTIVE", "DORMANT", "LOST"] as const;
 
@@ -16,23 +16,40 @@ const clientSchema = z.object({
   address: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
   stage: z.enum(clientStages).optional(),
-  markupPercent: z.coerce.number().min(0).optional(),
   agreementType: z.enum(AGREEMENT_TYPES).optional().or(z.literal("")),
   services: z.array(z.enum(SERVICE_TYPES)),
 });
 
 function parseClientForm(formData: FormData) {
-  return clientSchema.safeParse({
+  const parsed = clientSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
     phone: formData.get("phone"),
     address: formData.get("address"),
     notes: formData.get("notes"),
     stage: formData.get("stage") || undefined,
-    markupPercent: formData.get("markupPercent") || undefined,
     agreementType: formData.get("agreementType") || undefined,
     services: formData.getAll("services"),
   });
+  if (!parsed.success) return parsed;
+
+  const serviceRates: { serviceType: (typeof SERVICE_TYPES)[number]; markupPercent: number }[] =
+    [];
+  for (const service of parsed.data.services) {
+    if (!(RATE_BASED_SERVICE_TYPES as readonly string[]).includes(service)) continue;
+    const rate = Number(formData.get(`rate_${service}`));
+    if (!Number.isFinite(rate) || rate < 0) {
+      return {
+        success: false as const,
+        error: {
+          issues: [{ message: `Enter an agreed rate for ${service.replace(/_/g, " ")}` }],
+        },
+      };
+    }
+    serviceRates.push({ serviceType: service, markupPercent: rate });
+  }
+
+  return { success: true as const, data: { ...parsed.data, serviceRates } };
 }
 
 export async function createClientAction(
@@ -52,9 +69,9 @@ export async function createClientAction(
       phone: parsed.data.phone || null,
       address: parsed.data.address || null,
       notes: parsed.data.notes || null,
-      markupPercent: parsed.data.markupPercent ?? 0,
       agreementType: parsed.data.agreementType || null,
       services: parsed.data.services,
+      serviceRates: { create: parsed.data.serviceRates },
     },
   });
 
@@ -82,9 +99,9 @@ export async function updateClientAction(
       address: parsed.data.address || null,
       notes: parsed.data.notes || null,
       stage: parsed.data.stage,
-      markupPercent: parsed.data.markupPercent ?? 0,
       agreementType: parsed.data.agreementType || null,
       services: parsed.data.services,
+      serviceRates: { deleteMany: {}, create: parsed.data.serviceRates },
     },
   });
 

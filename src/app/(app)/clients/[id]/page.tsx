@@ -23,12 +23,16 @@ export default async function ClientDetailPage({
       quotes: { orderBy: { issueDate: "desc" } },
       clientNotes: { orderBy: { createdAt: "desc" }, include: { author: true } },
       followUps: { orderBy: { dueDate: "asc" } },
+      serviceRates: true,
     },
   });
 
   if (!client) notFound();
 
   const boundUpdate = updateClientAction.bind(null, client.id);
+  const serviceRates = Object.fromEntries(
+    client.serviceRates.map((r) => [r.serviceType, r.markupPercent.toString()]),
+  );
 
   return (
     <div>
@@ -46,7 +50,7 @@ export default async function ClientDetailPage({
             </h2>
             <ClientForm
               action={boundUpdate}
-              defaultValues={{ ...client, markupPercent: client.markupPercent.toString() }}
+              defaultValues={{ ...client, serviceRates }}
               submitLabel="Save changes"
             />
           </Card>
@@ -64,15 +68,19 @@ export default async function ClientDetailPage({
                     : "Not set"}
                 </dd>
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="shrink-0 text-zinc-500">Services</dt>
-                <dd className="text-right">
-                  {client.services.length === 0
-                    ? "None"
-                    : client.services.map((s) => SERVICE_TYPE_LABELS[s]).join(", ")}
-                </dd>
-              </div>
             </dl>
+            {client.services.length > 0 && (
+              <ul className="mt-3 flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800 border-t border-zinc-100 dark:border-zinc-800 pt-2 text-sm">
+                {client.services.map((s) => (
+                  <li key={s} className="flex justify-between py-1.5">
+                    <span>{SERVICE_TYPE_LABELS[s]}</span>
+                    <span className="text-zinc-500">
+                      {serviceRates[s] ? `${serviceRates[s]}% markup` : "Flat quote"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
 
           <Card>

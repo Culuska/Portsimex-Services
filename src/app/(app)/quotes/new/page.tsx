@@ -11,7 +11,11 @@ export default async function NewQuotePage({
   const [clients, shipments, purchaseRequests] = await Promise.all([
     prisma.client.findMany({
       orderBy: { name: "asc" },
-      select: { id: true, name: true, markupPercent: true },
+      select: {
+        id: true,
+        name: true,
+        serviceRates: { select: { serviceType: true, markupPercent: true } },
+      },
     }),
     prisma.shipment.findMany({
       orderBy: { createdAt: "desc" },
@@ -27,7 +31,13 @@ export default async function NewQuotePage({
     <div>
       <PageHeader title="New quote" />
       <QuoteForm
-        clients={clients.map((c) => ({ ...c, markupPercent: c.markupPercent.toString() }))}
+        clients={clients.map((c) => ({
+          ...c,
+          serviceRates: c.serviceRates.map((r) => ({
+            serviceType: r.serviceType,
+            markupPercent: r.markupPercent.toString(),
+          })),
+        }))}
         shipments={shipments}
         purchaseRequests={purchaseRequests.map((pr) => ({
           ...pr,

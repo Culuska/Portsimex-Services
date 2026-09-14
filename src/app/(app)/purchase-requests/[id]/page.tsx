@@ -20,7 +20,7 @@ export default async function PurchaseRequestDetailPage({
         category: true,
         vendor: true,
         shipment: true,
-        client: true,
+        client: { include: { serviceRates: true } },
         requestedBy: true,
         decidedBy: true,
         expense: true,
@@ -36,7 +36,8 @@ export default async function PurchaseRequestDetailPage({
   const boundApprove = approvePurchaseRequestAction.bind(null, pr.id);
   const boundReject = rejectPurchaseRequestAction.bind(null, pr.id);
 
-  const markupPercent = pr.client ? Number(pr.client.markupPercent) : null;
+  const rate = pr.client?.serviceRates.find((r) => r.serviceType === pr.serviceType);
+  const markupPercent = rate ? Number(rate.markupPercent) : null;
   const billableAmount =
     markupPercent !== null ? Number(pr.amount) * (1 + markupPercent / 100) : null;
 
@@ -87,6 +88,12 @@ export default async function PurchaseRequestDetailPage({
                   {formatCurrency(billableAmount.toString())}
                 </dd>
               </div>
+            )}
+            {pr.client && billableAmount === null && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                No agreed rate set for {pr.serviceType ? SERVICE_TYPE_LABELS[pr.serviceType] : "this service"} on{" "}
+                {pr.client.name} — set one on their client profile.
+              </p>
             )}
             <div className="flex justify-between">
               <dt className="text-zinc-500">Vendor</dt>
