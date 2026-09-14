@@ -59,7 +59,7 @@ export default function ClientForm({
           name="name"
           required
           defaultValue={defaultValues?.name}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
       {defaultValues && (
@@ -71,7 +71,7 @@ export default function ClientForm({
             id="stage"
             name="stage"
             defaultValue={defaultValues?.stage ?? "ACTIVE"}
-            className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="PROSPECT">Prospect</option>
             <option value="ACTIVE">Active</option>
@@ -89,7 +89,7 @@ export default function ClientForm({
           id="agreementType"
           name="agreementType"
           defaultValue={defaultValues?.agreementType ?? ""}
-          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">Not set</option>
           {AGREEMENT_TYPES.map((type) => (
@@ -132,7 +132,7 @@ export default function ClientForm({
                       required
                       placeholder="Rate %"
                       defaultValue={defaultValues?.serviceRates?.[service] ?? ""}
-                      className="w-24 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-24 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-brand-500"
                     />
                     <span className="text-sm text-zinc-500">%</span>
                   </div>
@@ -174,7 +174,7 @@ export default function ClientForm({
             name="email"
             type="email"
             defaultValue={defaultValues?.email ?? ""}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -185,7 +185,7 @@ export default function ClientForm({
             id="phone"
             name="phone"
             defaultValue={defaultValues?.phone ?? ""}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
       </div>
@@ -197,7 +197,7 @@ export default function ClientForm({
           id="address"
           name="address"
           defaultValue={defaultValues?.address ?? ""}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -209,7 +209,7 @@ export default function ClientForm({
           name="notes"
           rows={3}
           defaultValue={defaultValues?.notes ?? ""}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
       {state.error && (
@@ -218,7 +218,7 @@ export default function ClientForm({
       <button
         type="submit"
         disabled={pending}
-        className="mt-2 w-fit rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+        className="mt-2 w-fit rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
       >
         {pending ? "Saving..." : submitLabel}
       </button>

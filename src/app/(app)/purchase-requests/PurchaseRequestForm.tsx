@@ -31,7 +31,7 @@ export default function PurchaseRequestForm({
           id="description"
           name="description"
           required
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
 
@@ -47,7 +47,7 @@ export default function PurchaseRequestForm({
             min="0"
             step="0.01"
             required
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -58,7 +58,7 @@ export default function PurchaseRequestForm({
             id="serviceType"
             name="serviceType"
             required
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="">Select a service</option>
             {RATE_BASED_SERVICE_TYPES.map((s) => (
@@ -77,7 +77,7 @@ export default function PurchaseRequestForm({
             name="categoryName"
             list="category-options"
             required
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           />
           <datalist id="category-options">
             {categories.map((c) => (
@@ -95,7 +95,7 @@ export default function PurchaseRequestForm({
           <select
             id="vendorId"
             name="vendorId"
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="">None</option>
             {vendors.map((v) => (
@@ -113,7 +113,7 @@ export default function PurchaseRequestForm({
             id="shipmentId"
             name="shipmentId"
             defaultValue={defaultShipmentId ?? ""}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="">None</option>
             {shipments.map((s) => (
@@ -132,7 +132,7 @@ export default function PurchaseRequestForm({
         <select
           id="clientId"
           name="clientId"
-          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">None (internal cost)</option>
           {clients.map((c) => (
@@ -155,7 +155,7 @@ export default function PurchaseRequestForm({
           name="notes"
           rows={3}
           placeholder="Why this is needed, links to quotes, anything the approver should know."
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
 
@@ -165,7 +165,7 @@ export default function PurchaseRequestForm({
       <button
         type="submit"
         disabled={pending}
-        className="mt-2 w-fit rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+        className="mt-2 w-fit rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
       >
         {pending ? "Submitting..." : "Submit request"}
       </button>

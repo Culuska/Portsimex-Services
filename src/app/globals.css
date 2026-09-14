@@ -10,6 +10,31 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Portsimex brand: navy (primary) + maroon (accent) */
+  --color-brand-50: #eef1fa;
+  --color-brand-100: #d9e0f2;
+  --color-brand-200: #b3c2e6;
+  --color-brand-300: #8aa3d9;
+  --color-brand-400: #5c7fc7;
+  --color-brand-500: #2f5cb0;
+  --color-brand-600: #0b3d91;
+  --color-brand-700: #092f6f;
+  --color-brand-800: #072452;
+  --color-brand-900: #051a3a;
+  --color-brand-950: #030f22;
+
+  --color-accent-50: #fdecec;
+  --color-accent-100: #fad0d0;
+  --color-accent-200: #f2a3a3;
+  --color-accent-300: #e87070;
+  --color-accent-400: #db3f3f;
+  --color-accent-500: #c81f1f;
+  --color-accent-600: #b11217;
+  --color-accent-700: #8f0e12;
+  --color-accent-800: #6d0b0e;
+  --color-accent-900: #4b0709;
+  --color-accent-950: #2e0405;
 }
 
 @media (prefers-color-scheme: dark) {

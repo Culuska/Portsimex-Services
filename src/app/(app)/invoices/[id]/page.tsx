@@ -108,7 +108,7 @@ export default async function InvoiceDetailPage({
               <select
                 name="status"
                 defaultValue={invoice.status}
-                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
               >
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>

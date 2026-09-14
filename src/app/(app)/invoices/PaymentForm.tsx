@@ -31,7 +31,7 @@ export default function PaymentForm({ invoiceId }: { invoiceId: string }) {
             min="0"
             step="0.01"
             required
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -44,7 +44,7 @@ export default function PaymentForm({ invoiceId }: { invoiceId: string }) {
             type="date"
             required
             defaultValue={today}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
       </div>
@@ -57,7 +57,7 @@ export default function PaymentForm({ invoiceId }: { invoiceId: string }) {
             id="method"
             name="method"
             defaultValue="BANK_TRANSFER"
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           >
             {METHODS.map((m) => (
               <option key={m} value={m}>
@@ -73,7 +73,7 @@ export default function PaymentForm({ invoiceId }: { invoiceId: string }) {
           <input
             id="reference"
             name="reference"
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
       </div>
@@ -83,7 +83,7 @@ export default function PaymentForm({ invoiceId }: { invoiceId: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-fit rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+        className="w-fit rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
       >
         {pending ? "Recording..." : "Record payment"}
       </button>

@@ -98,7 +98,7 @@ export default async function DashboardPage() {
             <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
               Recent shipments
             </h2>
-            <Link href="/shipments" className="text-sm text-blue-600 hover:underline">
+            <Link href="/shipments" className="text-sm text-brand-600 hover:underline">
               View all
             </Link>
           </div>
@@ -131,7 +131,7 @@ export default async function DashboardPage() {
             <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
               Recent invoices
             </h2>
-            <Link href="/invoices" className="text-sm text-blue-600 hover:underline">
+            <Link href="/invoices" className="text-sm text-brand-600 hover:underline">
               View all
             </Link>
           </div>
@@ -169,7 +169,7 @@ export default async function DashboardPage() {
               </h2>
               <Link
                 href="/purchase-requests"
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-brand-600 hover:underline"
               >
                 View all
               </Link>

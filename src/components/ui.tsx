@@ -70,7 +70,7 @@ export function ButtonLink({
   return (
     <Link
       href={href}
-      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+      className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
     >
       {children}
     </Link>
@@ -79,13 +79,13 @@ export function ButtonLink({
 
 const badgeColors: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
-  IN_TRANSIT: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  IN_TRANSIT: "bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300",
   ARRIVED: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
   CUSTOMS_HOLD: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
   COMPLETED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   CANCELLED: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
   DRAFT: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
-  SENT: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  SENT: "bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300",
   PARTIALLY_PAID: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   PAID: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   OVERDUE: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
@@ -93,7 +93,7 @@ const badgeColors: Record<string, string> = {
   REJECTED: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
   ACCEPTED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   EXPIRED: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
-  PROSPECT: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  PROSPECT: "bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300",
   ACTIVE: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   DORMANT: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   LOST: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",

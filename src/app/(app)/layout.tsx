@@ -20,10 +20,10 @@ export default async function AppLayout({
       <aside className="hidden w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 sm:flex sm:flex-col sm:justify-between">
         <div>
           <div className="px-3 pb-6">
-            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              SAAD
+            <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">
+              Portsimex <span className="text-accent-600">Services</span>
             </p>
-            <p className="text-xs text-zinc-500">Ops &amp; Finance</p>
+            <p className="text-[10px] font-medium text-zinc-400">Your World brought closer</p>
           </div>
           <Nav isAdmin={isAdmin} />
         </div>

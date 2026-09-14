@@ -29,7 +29,7 @@ export default function Nav({ isAdmin }: { isAdmin: boolean }) {
             href={item.href}
             className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
               active
-                ? "bg-blue-600 text-white"
+                ? "bg-brand-600 text-white"
                 : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
             }`}
           >
