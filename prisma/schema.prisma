@@ -72,6 +72,22 @@ enum QuoteStatus {
   EXPIRED
 }
 
+enum AgreementType {
+  CLOSED
+  NON_DISCLOSED
+}
+
+enum ServiceType {
+  CUSTOMS_CLEARANCE
+  IMPORT
+  EXPORT
+  IMMIGRATION_SUPPORT
+  EXPEDITION
+  TRANSPORTATION
+  TOPUPS
+  EMPLOYMENT_PAYMENT
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -97,10 +113,12 @@ model Client {
   phone         String?
   address       String?
   notes         String?
-  stage         ClientStage @default(ACTIVE)
-  markupPercent Decimal     @default(0) @db.Decimal(5, 2)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  stage         ClientStage    @default(ACTIVE)
+  markupPercent Decimal        @default(0) @db.Decimal(5, 2)
+  agreementType AgreementType?
+  services      ServiceType[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   shipments        Shipment[]
   invoices         Invoice[]
@@ -212,10 +230,11 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id          String  @id @default(cuid())
+  id          String       @id @default(cuid())
   description String
-  quantity    Decimal @default(1) @db.Decimal(12, 2)
-  unitPrice   Decimal @db.Decimal(12, 2)
+  quantity    Decimal      @default(1) @db.Decimal(12, 2)
+  unitPrice   Decimal      @db.Decimal(12, 2)
+  serviceType ServiceType?
 
   invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   invoiceId String
@@ -277,6 +296,7 @@ model PurchaseRequest {
   description   String
   amount        Decimal               @db.Decimal(12, 2)
   status        PurchaseRequestStatus @default(PENDING)
+  serviceType   ServiceType?
   notes         String?
   requestedAt   DateTime              @default(now())
   decidedAt     DateTime?
@@ -332,10 +352,11 @@ model Quote {
 }
 
 model QuoteItem {
-  id          String  @id @default(cuid())
+  id          String       @id @default(cuid())
   description String
-  quantity    Decimal @default(1) @db.Decimal(12, 2)
-  unitPrice   Decimal @db.Decimal(12, 2)
+  quantity    Decimal      @default(1) @db.Decimal(12, 2)
+  unitPrice   Decimal      @db.Decimal(12, 2)
+  serviceType ServiceType?
 
   quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   quoteId String

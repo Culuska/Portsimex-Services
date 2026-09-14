@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { SERVICE_TYPES } from "@/lib/services";
 
 const quoteStatuses = ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"] as const;
 
@@ -12,6 +13,7 @@ const lineItemSchema = z.object({
   description: z.string().min(1),
   quantity: z.coerce.number().positive(),
   unitPrice: z.coerce.number().nonnegative(),
+  serviceType: z.enum(SERVICE_TYPES),
   purchaseRequestId: z.string().optional().or(z.literal("")),
 });
 
@@ -38,6 +40,7 @@ export async function createQuoteAction(
   const descriptions = formData.getAll("description[]") as string[];
   const quantities = formData.getAll("quantity[]") as string[];
   const unitPrices = formData.getAll("unitPrice[]") as string[];
+  const serviceTypes = formData.getAll("serviceType[]") as string[];
   const purchaseRequestIds = formData.getAll("purchaseRequestId[]") as string[];
 
   const items = descriptions
@@ -45,6 +48,7 @@ export async function createQuoteAction(
       description,
       quantity: quantities[i],
       unitPrice: unitPrices[i],
+      serviceType: serviceTypes[i],
       purchaseRequestId: purchaseRequestIds[i],
     }))
     .filter((item) => item.description.trim() !== "");
@@ -75,6 +79,7 @@ export async function createQuoteAction(
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          serviceType: item.serviceType,
           purchaseRequestId: item.purchaseRequestId || null,
         })),
       },
@@ -134,6 +139,7 @@ export async function convertQuoteToInvoiceAction(id: string) {
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          serviceType: item.serviceType,
         })),
       },
     },

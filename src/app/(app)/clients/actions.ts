@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { SERVICE_TYPES, AGREEMENT_TYPES } from "@/lib/services";
 
 const clientStages = ["PROSPECT", "ACTIVE", "DORMANT", "LOST"] as const;
 
@@ -16,6 +17,8 @@ const clientSchema = z.object({
   notes: z.string().optional().or(z.literal("")),
   stage: z.enum(clientStages).optional(),
   markupPercent: z.coerce.number().min(0).optional(),
+  agreementType: z.enum(AGREEMENT_TYPES).optional().or(z.literal("")),
+  services: z.array(z.enum(SERVICE_TYPES)),
 });
 
 function parseClientForm(formData: FormData) {
@@ -27,6 +30,8 @@ function parseClientForm(formData: FormData) {
     notes: formData.get("notes"),
     stage: formData.get("stage") || undefined,
     markupPercent: formData.get("markupPercent") || undefined,
+    agreementType: formData.get("agreementType") || undefined,
+    services: formData.getAll("services"),
   });
 }
 
@@ -48,6 +53,8 @@ export async function createClientAction(
       address: parsed.data.address || null,
       notes: parsed.data.notes || null,
       markupPercent: parsed.data.markupPercent ?? 0,
+      agreementType: parsed.data.agreementType || null,
+      services: parsed.data.services,
     },
   });
 
@@ -76,6 +83,8 @@ export async function updateClientAction(
       notes: parsed.data.notes || null,
       stage: parsed.data.stage,
       markupPercent: parsed.data.markupPercent ?? 0,
+      agreementType: parsed.data.agreementType || null,
+      services: parsed.data.services,
     },
   });
 

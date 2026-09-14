@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { formatDate } from "@/lib/format";
+import { AGREEMENT_TYPE_LABELS, SERVICE_TYPE_LABELS } from "@/lib/services";
 import ClientForm from "../ClientForm";
 import NoteForm from "../NoteForm";
 import FollowUpForm from "../FollowUpForm";
@@ -48,6 +49,30 @@ export default async function ClientDetailPage({
               defaultValues={{ ...client, markupPercent: client.markupPercent.toString() }}
               submitLabel="Save changes"
             />
+          </Card>
+
+          <Card>
+            <h2 className="mb-4 font-semibold text-zinc-900 dark:text-zinc-50">
+              Agreement
+            </h2>
+            <dl className="flex flex-col gap-2 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-zinc-500">Type</dt>
+                <dd>
+                  {client.agreementType
+                    ? AGREEMENT_TYPE_LABELS[client.agreementType]
+                    : "Not set"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="shrink-0 text-zinc-500">Services</dt>
+                <dd className="text-right">
+                  {client.services.length === 0
+                    ? "None"
+                    : client.services.map((s) => SERVICE_TYPE_LABELS[s]).join(", ")}
+                </dd>
+              </div>
+            </dl>
           </Card>
 
           <Card>

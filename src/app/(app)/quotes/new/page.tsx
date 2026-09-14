@@ -19,7 +19,7 @@ export default async function NewQuotePage({
     }),
     prisma.purchaseRequest.findMany({
       where: { status: "APPROVED", clientId: { not: null }, quoteItem: null },
-      select: { id: true, description: true, amount: true, clientId: true },
+      select: { id: true, description: true, amount: true, clientId: true, serviceType: true },
     }),
   ]);
 

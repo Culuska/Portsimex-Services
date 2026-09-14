@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { SERVICE_TYPES, SERVICE_TYPE_LABELS, AGREEMENT_TYPES, AGREEMENT_TYPE_LABELS } from "@/lib/services";
 
 type ActionState = { error: string | null };
 type ClientFormAction = (
@@ -22,6 +23,8 @@ export default function ClientForm({
     notes: string | null;
     stage?: string;
     markupPercent?: string;
+    agreementType?: string | null;
+    services?: string[];
   };
   submitLabel: string;
 }) {
@@ -78,6 +81,44 @@ export default function ClientForm({
           </p>
         </div>
       </div>
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor="agreementType" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Agreement type
+        </label>
+        <select
+          id="agreementType"
+          name="agreementType"
+          defaultValue={defaultValues?.agreementType ?? ""}
+          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Not set</option>
+          {AGREEMENT_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {AGREEMENT_TYPE_LABELS[type]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Services</p>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+          {SERVICE_TYPES.map((service) => (
+            <label key={service} className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+              <input
+                type="checkbox"
+                name="services"
+                value={service}
+                defaultChecked={defaultValues?.services?.includes(service)}
+                className="rounded border-zinc-300 dark:border-zinc-700"
+              />
+              {SERVICE_TYPE_LABELS[service]}
+            </label>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="email" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">

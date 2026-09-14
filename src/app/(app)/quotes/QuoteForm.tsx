@@ -2,11 +2,17 @@
 
 import { useActionState, useState } from "react";
 import { createQuoteAction } from "./actions";
+import {
+  RATE_BASED_SERVICE_TYPES,
+  FLAT_SERVICE_TYPES,
+  SERVICE_TYPE_LABELS,
+} from "@/lib/services";
 
 type LineItem = {
   description: string;
   quantity: string;
   unitPrice: string;
+  serviceType: string;
   purchaseRequestId?: string;
 };
 
@@ -18,14 +24,20 @@ export default function QuoteForm({
 }: {
   clients: { id: string; name: string; markupPercent: string }[];
   shipments: { id: string; reference: string; clientId: string }[];
-  purchaseRequests: { id: string; description: string; amount: string; clientId: string }[];
+  purchaseRequests: {
+    id: string;
+    description: string;
+    amount: string;
+    clientId: string;
+    serviceType: string | null;
+  }[];
   defaultShipmentId?: string;
 }) {
   const [state, formAction, pending] = useActionState(createQuoteAction, {
     error: null,
   });
   const [items, setItems] = useState<LineItem[]>([
-    { description: "", quantity: "1", unitPrice: "" },
+    { description: "", quantity: "1", unitPrice: "", serviceType: "" },
   ]);
   const [clientId, setClientId] = useState("");
 
@@ -41,7 +53,10 @@ export default function QuoteForm({
   }
 
   function addItem() {
-    setItems((prev) => [...prev, { description: "", quantity: "1", unitPrice: "" }]);
+    setItems((prev) => [
+      ...prev,
+      { description: "", quantity: "1", unitPrice: "", serviceType: "" },
+    ]);
   }
 
   function removeItem(index: number) {
@@ -56,7 +71,12 @@ export default function QuoteForm({
     (pr) => pr.clientId === clientId && !linkedPurchaseRequestIds.has(pr.id),
   );
 
-  function addPurchaseRequest(pr: { id: string; description: string; amount: string }) {
+  function addPurchaseRequest(pr: {
+    id: string;
+    description: string;
+    amount: string;
+    serviceType: string | null;
+  }) {
     const markupPercent = Number(selectedClient?.markupPercent ?? 0);
     const billable = Number(pr.amount) * (1 + markupPercent / 100);
     setItems((prev) => {
@@ -67,6 +87,7 @@ export default function QuoteForm({
           description: pr.description,
           quantity: "1",
           unitPrice: billable.toFixed(2),
+          serviceType: pr.serviceType ?? "",
           purchaseRequestId: pr.id,
         },
       ];
@@ -175,6 +196,29 @@ export default function QuoteForm({
           {items.map((item, index) => (
             <div key={index} className="flex items-center gap-2">
               <input type="hidden" name="purchaseRequestId[]" value={item.purchaseRequestId ?? ""} />
+              <select
+                name="serviceType[]"
+                required
+                value={item.serviceType}
+                onChange={(e) => updateItem(index, "serviceType", e.target.value)}
+                className="w-40 shrink-0 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Service…</option>
+                <optgroup label="Rate-based">
+                  {RATE_BASED_SERVICE_TYPES.map((s) => (
+                    <option key={s} value={s}>
+                      {SERVICE_TYPE_LABELS[s]}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Flat quote">
+                  {FLAT_SERVICE_TYPES.map((s) => (
+                    <option key={s} value={s}>
+                      {SERVICE_TYPE_LABELS[s]}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
               <input
                 name="description[]"
                 placeholder="Description"

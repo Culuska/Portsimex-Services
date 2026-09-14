@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { invoiceBalance, invoiceTotal } from "@/lib/invoices";
+import { SERVICE_TYPE_LABELS } from "@/lib/services";
 import { updateInvoiceStatusAction, deleteDraftInvoiceAction } from "../actions";
 import PaymentForm from "../PaymentForm";
 
@@ -58,6 +59,7 @@ export default async function InvoiceDetailPage({
             <table className="w-full text-left text-sm">
               <thead className="text-zinc-500">
                 <tr>
+                  <th className="py-1 font-medium">Service</th>
                   <th className="py-1 font-medium">Description</th>
                   <th className="py-1 font-medium text-right">Qty</th>
                   <th className="py-1 font-medium text-right">Unit price</th>
@@ -67,6 +69,9 @@ export default async function InvoiceDetailPage({
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {invoice.items.map((item) => (
                   <tr key={item.id}>
+                    <td className="py-2 text-zinc-500">
+                      {item.serviceType ? SERVICE_TYPE_LABELS[item.serviceType] : "—"}
+                    </td>
                     <td className="py-2">{item.description}</td>
                     <td className="py-2 text-right">{item.quantity.toString()}</td>
                     <td className="py-2 text-right">

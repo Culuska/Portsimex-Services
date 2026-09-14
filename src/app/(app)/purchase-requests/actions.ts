@@ -5,11 +5,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireAdmin } from "@/lib/session";
+import { SERVICE_TYPES, RATE_BASED_SERVICE_TYPES } from "@/lib/services";
 
 const purchaseRequestSchema = z.object({
   description: z.string().min(1, "Description is required"),
   amount: z.coerce.number().positive("Amount must be greater than zero"),
   categoryName: z.string().min(1, "Category is required"),
+  serviceType: z
+    .enum(SERVICE_TYPES)
+    .refine((s) => (RATE_BASED_SERVICE_TYPES as readonly string[]).includes(s), {
+      message: "Not a rate-based service",
+    }),
   vendorId: z.string().optional().or(z.literal("")),
   shipmentId: z.string().optional().or(z.literal("")),
   clientId: z.string().optional().or(z.literal("")),
@@ -31,6 +37,7 @@ export async function createPurchaseRequestAction(
     description: formData.get("description"),
     amount: formData.get("amount"),
     categoryName: formData.get("categoryName"),
+    serviceType: formData.get("serviceType"),
     vendorId: formData.get("vendorId"),
     shipmentId: formData.get("shipmentId"),
     clientId: formData.get("clientId"),
@@ -55,6 +62,7 @@ export async function createPurchaseRequestAction(
       description: parsed.data.description,
       amount: parsed.data.amount,
       categoryId: category.id,
+      serviceType: parsed.data.serviceType,
       vendorId: parsed.data.vendorId || null,
       shipmentId: parsed.data.shipmentId || null,
       clientId: parsed.data.clientId || null,

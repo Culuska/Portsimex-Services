@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createPurchaseRequestAction } from "./actions";
+import { RATE_BASED_SERVICE_TYPES, SERVICE_TYPE_LABELS } from "@/lib/services";
 
 export default function PurchaseRequestForm({
   vendors,
@@ -34,7 +35,7 @@ export default function PurchaseRequestForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="amount" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             Estimated amount
@@ -48,6 +49,24 @@ export default function PurchaseRequestForm({
             required
             className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
           />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="serviceType" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Service
+          </label>
+          <select
+            id="serviceType"
+            name="serviceType"
+            required
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select a service</option>
+            {RATE_BASED_SERVICE_TYPES.map((s) => (
+              <option key={s} value={s}>
+                {SERVICE_TYPE_LABELS[s]}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="categoryName" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { SERVICE_TYPE_LABELS } from "@/lib/services";
 import { approvePurchaseRequestAction, rejectPurchaseRequestAction } from "../actions";
 
 export default async function PurchaseRequestDetailPage({
@@ -58,6 +59,10 @@ export default async function PurchaseRequestDetailPage({
               <dd className="font-medium text-zinc-900 dark:text-zinc-50">
                 {formatCurrency(pr.amount.toString())}
               </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-zinc-500">Service</dt>
+              <dd>{pr.serviceType ? SERVICE_TYPE_LABELS[pr.serviceType] : "—"}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-zinc-500">Category</dt>
