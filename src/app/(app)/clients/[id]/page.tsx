@@ -97,7 +97,17 @@ export default async function ClientDetailPage({
             </h2>
             <ClientForm
               action={boundUpdate}
-              defaultValues={{ ...client, serviceRates }}
+              defaultValues={{
+                name: client.name,
+                email: client.email,
+                phone: client.phone,
+                address: client.address,
+                notes: client.notes,
+                stage: client.stage,
+                agreementType: client.agreementType,
+                services: client.services,
+                serviceRates,
+              }}
               submitLabel="Save changes"
             />
           </Card>
