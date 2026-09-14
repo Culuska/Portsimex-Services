@@ -19,9 +19,11 @@ export default async function PurchaseRequestDetailPage({
         category: true,
         vendor: true,
         shipment: true,
+        client: true,
         requestedBy: true,
         decidedBy: true,
         expense: true,
+        quoteItem: { include: { quote: true } },
       },
     }),
     auth(),
@@ -32,6 +34,10 @@ export default async function PurchaseRequestDetailPage({
   const isAdmin = session?.user.role === "ADMIN";
   const boundApprove = approvePurchaseRequestAction.bind(null, pr.id);
   const boundReject = rejectPurchaseRequestAction.bind(null, pr.id);
+
+  const markupPercent = pr.client ? Number(pr.client.markupPercent) : null;
+  const billableAmount =
+    markupPercent !== null ? Number(pr.amount) * (1 + markupPercent / 100) : null;
 
   return (
     <div>
@@ -48,7 +54,7 @@ export default async function PurchaseRequestDetailPage({
           </h2>
           <dl className="flex flex-col gap-3 text-sm">
             <div className="flex justify-between">
-              <dt className="text-zinc-500">Amount</dt>
+              <dt className="text-zinc-500">Market cost</dt>
               <dd className="font-medium text-zinc-900 dark:text-zinc-50">
                 {formatCurrency(pr.amount.toString())}
               </dd>
@@ -57,6 +63,26 @@ export default async function PurchaseRequestDetailPage({
               <dt className="text-zinc-500">Category</dt>
               <dd>{pr.category.name}</dd>
             </div>
+            <div className="flex justify-between">
+              <dt className="text-zinc-500">Client</dt>
+              <dd>
+                {pr.client ? (
+                  <Link href={`/clients/${pr.client.id}`} className="hover:underline">
+                    {pr.client.name}
+                  </Link>
+                ) : (
+                  "— (internal cost)"
+                )}
+              </dd>
+            </div>
+            {billableAmount !== null && (
+              <div className="flex justify-between">
+                <dt className="text-zinc-500">Client billable ({markupPercent}% markup)</dt>
+                <dd className="font-medium text-zinc-900 dark:text-zinc-50">
+                  {formatCurrency(billableAmount.toString())}
+                </dd>
+              </div>
+            )}
             <div className="flex justify-between">
               <dt className="text-zinc-500">Vendor</dt>
               <dd>{pr.vendor?.name ?? "—"}</dd>
@@ -129,6 +155,23 @@ export default async function PurchaseRequestDetailPage({
             <Card>
               <p className="text-sm text-zinc-500">
                 Waiting on an admin to approve or reject this request.
+              </p>
+            </Card>
+          )}
+
+          {pr.quoteItem && (
+            <Card>
+              <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">
+                Added to quote
+              </h2>
+              <Link
+                href={`/quotes/${pr.quoteItem.quoteId}`}
+                className="text-sm font-medium text-zinc-900 hover:underline dark:text-zinc-50"
+              >
+                {pr.quoteItem.quote.quoteNumber}
+              </Link>
+              <p className="mt-1 text-xs text-zinc-500">
+                Billed at {formatCurrency(pr.quoteItem.unitPrice.toString())}
               </p>
             </Card>
           )}

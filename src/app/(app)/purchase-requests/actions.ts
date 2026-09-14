@@ -12,6 +12,7 @@ const purchaseRequestSchema = z.object({
   categoryName: z.string().min(1, "Category is required"),
   vendorId: z.string().optional().or(z.literal("")),
   shipmentId: z.string().optional().or(z.literal("")),
+  clientId: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
 });
 
@@ -32,6 +33,7 @@ export async function createPurchaseRequestAction(
     categoryName: formData.get("categoryName"),
     vendorId: formData.get("vendorId"),
     shipmentId: formData.get("shipmentId"),
+    clientId: formData.get("clientId"),
     notes: formData.get("notes"),
   });
 
@@ -55,6 +57,7 @@ export async function createPurchaseRequestAction(
       categoryId: category.id,
       vendorId: parsed.data.vendorId || null,
       shipmentId: parsed.data.shipmentId || null,
+      clientId: parsed.data.clientId || null,
       notes: parsed.data.notes || null,
       requestedById: user.id,
     },

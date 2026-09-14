@@ -21,6 +21,7 @@ export default function ClientForm({
     address: string | null;
     notes: string | null;
     stage?: string;
+    markupPercent?: string;
   };
   submitLabel: string;
 }) {
@@ -40,24 +41,43 @@ export default function ClientForm({
           className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
-      {defaultValues && (
+      <div className="grid grid-cols-2 gap-4">
+        {defaultValues && (
+          <div className="flex flex-col gap-1">
+            <label htmlFor="stage" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Relationship stage
+            </label>
+            <select
+              id="stage"
+              name="stage"
+              defaultValue={defaultValues?.stage ?? "ACTIVE"}
+              className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="PROSPECT">Prospect</option>
+              <option value="ACTIVE">Active</option>
+              <option value="DORMANT">Dormant</option>
+              <option value="LOST">Lost</option>
+            </select>
+          </div>
+        )}
         <div className="flex flex-col gap-1">
-          <label htmlFor="stage" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Relationship stage
+          <label htmlFor="markupPercent" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Agreed markup %
           </label>
-          <select
-            id="stage"
-            name="stage"
-            defaultValue={defaultValues?.stage ?? "ACTIVE"}
+          <input
+            id="markupPercent"
+            name="markupPercent"
+            type="number"
+            min="0"
+            step="0.01"
+            defaultValue={defaultValues?.markupPercent ?? "0"}
             className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="PROSPECT">Prospect</option>
-            <option value="ACTIVE">Active</option>
-            <option value="DORMANT">Dormant</option>
-            <option value="LOST">Lost</option>
-          </select>
+          />
+          <p className="text-xs text-zinc-500">
+            Added on top of market cost when billing this client (e.g. 10 = 10%).
+          </p>
         </div>
-      )}
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="email" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">

@@ -7,11 +7,13 @@ export default function PurchaseRequestForm({
   vendors,
   shipments,
   categories,
+  clients,
   defaultShipmentId,
 }: {
   vendors: { id: string; name: string }[];
   shipments: { id: string; reference: string }[];
   categories: { id: string; name: string }[];
+  clients: { id: string; name: string }[];
   defaultShipmentId?: string;
 }) {
   const [state, formAction, pending] = useActionState(createPurchaseRequestAction, {
@@ -102,6 +104,27 @@ export default function PurchaseRequestForm({
             ))}
           </select>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor="clientId" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Client (optional)
+        </label>
+        <select
+          id="clientId"
+          name="clientId"
+          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">None (internal cost)</option>
+          {clients.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-zinc-500">
+          Set this if this purchase should be billed on to a client (uses their agreed markup %).
+        </p>
       </div>
 
       <div className="flex flex-col gap-1">

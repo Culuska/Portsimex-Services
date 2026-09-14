@@ -45,7 +45,7 @@ export default async function ClientDetailPage({
             </h2>
             <ClientForm
               action={boundUpdate}
-              defaultValues={client}
+              defaultValues={{ ...client, markupPercent: client.markupPercent.toString() }}
               submitLabel="Save changes"
             />
           </Card>

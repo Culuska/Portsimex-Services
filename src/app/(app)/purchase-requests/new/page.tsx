@@ -8,13 +8,14 @@ export default async function NewPurchaseRequestPage({
   searchParams: Promise<{ shipmentId?: string }>;
 }) {
   const { shipmentId } = await searchParams;
-  const [vendors, shipments, categories] = await Promise.all([
+  const [vendors, shipments, categories, clients] = await Promise.all([
     prisma.vendor.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.shipment.findMany({
       orderBy: { createdAt: "desc" },
       select: { id: true, reference: true },
     }),
     prisma.expenseCategory.findMany({ orderBy: { name: "asc" } }),
+    prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
 
   return (
@@ -24,6 +25,7 @@ export default async function NewPurchaseRequestPage({
         vendors={vendors}
         shipments={shipments}
         categories={categories}
+        clients={clients}
         defaultShipmentId={shipmentId}
       />
     </div>

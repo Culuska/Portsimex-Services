@@ -15,6 +15,7 @@ const clientSchema = z.object({
   address: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
   stage: z.enum(clientStages).optional(),
+  markupPercent: z.coerce.number().min(0).optional(),
 });
 
 function parseClientForm(formData: FormData) {
@@ -25,6 +26,7 @@ function parseClientForm(formData: FormData) {
     address: formData.get("address"),
     notes: formData.get("notes"),
     stage: formData.get("stage") || undefined,
+    markupPercent: formData.get("markupPercent") || undefined,
   });
 }
 
@@ -45,6 +47,7 @@ export async function createClientAction(
       phone: parsed.data.phone || null,
       address: parsed.data.address || null,
       notes: parsed.data.notes || null,
+      markupPercent: parsed.data.markupPercent ?? 0,
     },
   });
 
@@ -72,6 +75,7 @@ export async function updateClientAction(
       address: parsed.data.address || null,
       notes: parsed.data.notes || null,
       stage: parsed.data.stage,
+      markupPercent: parsed.data.markupPercent ?? 0,
     },
   });
 

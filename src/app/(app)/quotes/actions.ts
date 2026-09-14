@@ -12,6 +12,7 @@ const lineItemSchema = z.object({
   description: z.string().min(1),
   quantity: z.coerce.number().positive(),
   unitPrice: z.coerce.number().nonnegative(),
+  purchaseRequestId: z.string().optional().or(z.literal("")),
 });
 
 const quoteSchema = z.object({
@@ -37,12 +38,14 @@ export async function createQuoteAction(
   const descriptions = formData.getAll("description[]") as string[];
   const quantities = formData.getAll("quantity[]") as string[];
   const unitPrices = formData.getAll("unitPrice[]") as string[];
+  const purchaseRequestIds = formData.getAll("purchaseRequestId[]") as string[];
 
   const items = descriptions
     .map((description, i) => ({
       description,
       quantity: quantities[i],
       unitPrice: unitPrices[i],
+      purchaseRequestId: purchaseRequestIds[i],
     }))
     .filter((item) => item.description.trim() !== "");
 
@@ -72,6 +75,7 @@ export async function createQuoteAction(
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          purchaseRequestId: item.purchaseRequestId || null,
         })),
       },
     },

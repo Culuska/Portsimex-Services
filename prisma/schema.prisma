@@ -91,19 +91,21 @@ model User {
 }
 
 model Client {
-  id        String      @id @default(cuid())
-  name      String
-  email     String?
-  phone     String?
-  address   String?
-  notes     String?
-  stage     ClientStage @default(ACTIVE)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id            String      @id @default(cuid())
+  name          String
+  email         String?
+  phone         String?
+  address       String?
+  notes         String?
+  stage         ClientStage @default(ACTIVE)
+  markupPercent Decimal     @default(0) @db.Decimal(5, 2)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
-  shipments Shipment[]
-  invoices  Invoice[]
-  quotes    Quote[]
+  shipments        Shipment[]
+  invoices         Invoice[]
+  quotes           Quote[]
+  purchaseRequests PurchaseRequest[]
 
   clientNotes ClientNote[]
   followUps   ClientFollowUp[]
@@ -290,6 +292,9 @@ model PurchaseRequest {
   shipment   Shipment? @relation(fields: [shipmentId], references: [id])
   shipmentId String?
 
+  client   Client? @relation(fields: [clientId], references: [id])
+  clientId String?
+
   requestedBy   User   @relation("PurchaseRequestRequestedBy", fields: [requestedById], references: [id])
   requestedById String
 
@@ -298,6 +303,8 @@ model PurchaseRequest {
 
   expense   Expense? @relation(fields: [expenseId], references: [id])
   expenseId String?  @unique
+
+  quoteItem QuoteItem?
 
   @@map("purchase_requests")
 }
@@ -332,6 +339,9 @@ model QuoteItem {
 
   quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   quoteId String
+
+  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id])
+  purchaseRequestId String?          @unique
 
   @@map("quote_items")
 }
