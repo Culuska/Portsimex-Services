@@ -79,6 +79,7 @@ export function ButtonLink({
 
 const badgeColors: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  PENDING_APPROVAL: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   IN_TRANSIT: "bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300",
   ARRIVED: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
   CUSTOMS_HOLD: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",

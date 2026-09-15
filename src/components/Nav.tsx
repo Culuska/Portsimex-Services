@@ -16,6 +16,7 @@ const opsLinks = [
 ];
 
 const adminExtraLinks = [
+  { href: "/accounting", label: "Accounting" },
   { href: "/users", label: "Users" },
   { href: "/ministries", label: "Ministries" },
   { href: "/ministry", label: "Ministry Queue" },

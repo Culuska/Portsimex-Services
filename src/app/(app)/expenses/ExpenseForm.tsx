@@ -15,6 +15,8 @@ export default function ExpenseForm({
   categories,
   defaultValues,
   submitLabel,
+  lockAmount = false,
+  lockStatus = false,
 }: {
   action: ExpenseFormAction;
   vendors: { id: string; name: string }[];
@@ -30,6 +32,12 @@ export default function ExpenseForm({
     incurredAt: Date | string;
   };
   submitLabel: string;
+  // True once the expense has already been accrued to the ledger --
+  // amount/category become read-only so an edit can never desync the
+  // posted balance. Use the approve/reject/pay actions to change status
+  // from here on instead of the dropdown below.
+  lockAmount?: boolean;
+  lockStatus?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null });
 
@@ -64,9 +72,19 @@ export default function ExpenseForm({
             min="0"
             step="0.01"
             required
+            readOnly={lockAmount}
             defaultValue={defaultValues?.amount}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            className={`rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 ${
+              lockAmount
+                ? "bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-500"
+                : "bg-white dark:bg-zinc-900"
+            }`}
           />
+          {lockAmount && (
+            <p className="text-xs text-zinc-500">
+              Locked once posted to the ledger -- create a new expense to correct a mistake.
+            </p>
+          )}
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="incurredAt" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -92,8 +110,13 @@ export default function ExpenseForm({
           name="categoryName"
           list="category-options"
           required
+          readOnly={lockAmount}
           defaultValue={defaultValues?.categoryName}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+          className={`rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 ${
+            lockAmount
+              ? "bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-500"
+              : "bg-white dark:bg-zinc-900"
+          }`}
         />
         <datalist id="category-options">
           {categories.map((c) => (
@@ -141,20 +164,32 @@ export default function ExpenseForm({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="status" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Status
-        </label>
-        <select
-          id="status"
-          name="status"
-          defaultValue={defaultValues?.status ?? "PENDING"}
-          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
-        >
-          <option value="PENDING">Pending</option>
-          <option value="PAID">Paid</option>
-        </select>
-      </div>
+      {lockStatus ? (
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Status</p>
+          <p className="text-xs text-zinc-500">
+            In the approval workflow now -- use the actions below to change it.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          <label htmlFor="status" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Status
+          </label>
+          <select
+            id="status"
+            name="status"
+            defaultValue={defaultValues?.status ?? "PENDING"}
+            className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="PENDING">Pending</option>
+            <option value="PAID">Paid</option>
+          </select>
+          <p className="text-xs text-zinc-500">
+            Amounts over $500 are automatically routed to approval instead of Paid.
+          </p>
+        </div>
+      )}
 
       {state.error && (
         <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>

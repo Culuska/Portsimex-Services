@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { recognizeInvoiceRevenue, recordInvoicePaymentCash } from "@/lib/ledger";
 
 const invoiceStatuses = [
   "DRAFT",
@@ -100,13 +101,22 @@ export async function createInvoiceAction(
 const statusSchema = z.object({ status: z.enum(invoiceStatuses) });
 
 export async function updateInvoiceStatusAction(id: string, formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
   const parsed = statusSchema.safeParse({ status: formData.get("status") });
   if (!parsed.success) return;
 
-  await prisma.invoice.update({
-    where: { id },
-    data: { status: parsed.data.status },
+  await prisma.$transaction(async (tx) => {
+    await tx.invoice.update({
+      where: { id },
+      data: { status: parsed.data.status },
+    });
+
+    // Revenue is recognized the moment the invoice is actually issued to
+    // the client, not when cash arrives -- Dr Accounts Receivable / Cr
+    // Freight Revenue. Idempotent, so re-saving SENT is harmless.
+    if (parsed.data.status === "SENT") {
+      await recognizeInvoiceRevenue(tx, id, user.id);
+    }
   });
 
   revalidatePath(`/invoices/${id}`);
@@ -125,7 +135,7 @@ export async function addPaymentAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireUser();
+  const user = await requireUser();
   const parsed = paymentSchema.safeParse({
     amount: formData.get("amount"),
     method: formData.get("method"),
@@ -137,14 +147,19 @@ export async function addPaymentAction(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  await prisma.payment.create({
-    data: {
-      invoiceId: id,
-      amount: parsed.data.amount,
-      method: parsed.data.method,
-      reference: parsed.data.reference || null,
-      paidAt: new Date(parsed.data.paidAt),
-    },
+  await prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.create({
+      data: {
+        invoiceId: id,
+        amount: parsed.data.amount,
+        method: parsed.data.method,
+        reference: parsed.data.reference || null,
+        paidAt: new Date(parsed.data.paidAt),
+      },
+    });
+
+    // Invoice Paid workflow: Dr Cash / Cr Accounts Receivable.
+    await recordInvoicePaymentCash(tx, payment.id, user.id);
   });
 
   const invoice = await prisma.invoice.findUniqueOrThrow({
