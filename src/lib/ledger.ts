@@ -189,14 +189,3 @@ export async function payoutExpense(tx: TxClient, expenseId: string, createdById
 
   await tx.expense.update({ where: { id: expenseId }, data: { payoutPostedAt: new Date() } });
 }
-
-// ASSET/EXPENSE accounts carry a natural debit balance; LIABILITY/EQUITY/
-// REVENUE carry a natural credit balance.
-export function accountBalance(
-  type: "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE",
-  lines: { direction: LedgerDirection; amount: number }[],
-) {
-  const debits = lines.filter((l) => l.direction === "DEBIT").reduce((s, l) => s + l.amount, 0);
-  const credits = lines.filter((l) => l.direction === "CREDIT").reduce((s, l) => s + l.amount, 0);
-  return type === "ASSET" || type === "EXPENSE" ? debits - credits : credits - debits;
-}

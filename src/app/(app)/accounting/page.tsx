@@ -4,7 +4,17 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Card, EmptyState } from "@/components/ui";
 import { formatCurrency } from "@/lib/format";
-import { accountBalance } from "@/lib/ledger";
+
+type AccountBalanceRow = {
+  account_id: string;
+  code: string;
+  name: string;
+  type: string;
+  is_system: boolean;
+  total_debits: string | number;
+  total_credits: string | number;
+  balance: string | number;
+};
 
 const TYPE_LABELS: Record<string, string> = {
   ASSET: "Assets",
@@ -19,15 +29,17 @@ export default async function ChartOfAccountsPage() {
   const session = await auth();
   if (session?.user.role !== "ADMIN") redirect("/");
 
-  const accounts = await prisma.account.findMany({
-    include: { ledgerLines: { select: { direction: true, amount: true } } },
-    orderBy: { code: "asc" },
-  });
+  // Running balances come from the account_balances SQL view (migration
+  // 20260915140000), which aggregates ledger_lines per account using the
+  // index on accountId rather than the app computing it row by row.
+  const rows = await prisma.$queryRaw<AccountBalanceRow[]>`
+    SELECT * FROM account_balances ORDER BY code ASC
+  `;
 
   const byType = TYPE_ORDER.map((type) => ({
     type,
-    accounts: accounts.filter((a) => a.type === type),
-  })).filter((g) => g.accounts.length > 0);
+    rows: rows.filter((r) => r.type === type),
+  })).filter((g) => g.rows.length > 0);
 
   return (
     <div>
@@ -51,7 +63,7 @@ export default async function ChartOfAccountsPage() {
           </div>
         }
       />
-      {accounts.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState message="No ledger activity yet. Accounts appear here as invoices are sent and expenses are recorded." />
       ) : (
         <div className="flex flex-col gap-6">
@@ -69,20 +81,12 @@ export default async function ChartOfAccountsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {group.accounts.map((a) => (
-                    <tr key={a.id}>
-                      <td className="px-4 py-2 text-zinc-500">{a.code}</td>
-                      <td className="px-4 py-2 text-zinc-900 dark:text-zinc-50">{a.name}</td>
+                  {group.rows.map((r) => (
+                    <tr key={r.account_id}>
+                      <td className="px-4 py-2 text-zinc-500">{r.code}</td>
+                      <td className="px-4 py-2 text-zinc-900 dark:text-zinc-50">{r.name}</td>
                       <td className="px-4 py-2 text-right font-medium text-zinc-900 dark:text-zinc-50">
-                        {formatCurrency(
-                          accountBalance(
-                            a.type,
-                            a.ledgerLines.map((l) => ({
-                              direction: l.direction,
-                              amount: Number(l.amount),
-                            })),
-                          ),
-                        )}
+                        {formatCurrency(Number(r.balance))}
                       </td>
                     </tr>
                   ))}

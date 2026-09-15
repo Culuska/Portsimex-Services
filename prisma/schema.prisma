@@ -492,6 +492,11 @@ model LedgerLine {
   transaction   LedgerTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   transactionId String
 
+  // Backs the account_balances view's per-account aggregation and the
+  // zero-variance trigger's per-transaction lookup -- without these, both
+  // degrade to a sequential scan of the whole table as it grows.
+  @@index([accountId])
+  @@index([transactionId])
   @@map("ledger_lines")
 }
 
