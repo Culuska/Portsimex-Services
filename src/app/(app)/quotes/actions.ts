@@ -25,10 +25,14 @@ const quoteSchema = z.object({
   items: z.array(lineItemSchema).min(1, "Add at least one line item"),
 });
 
+// nextval() on a Postgres sequence is atomic, so concurrent quote
+// creation can never collide on the same number.
 async function generateQuoteNumber() {
   const year = new Date().getFullYear();
-  const count = await prisma.quote.count();
-  return `QT-${year}-${String(count + 1).padStart(4, "0")}`;
+  const [{ nextval }] = await prisma.$queryRaw<{ nextval: bigint }[]>`
+    SELECT nextval('quote_number_seq') AS nextval
+  `;
+  return `QT-${year}-${String(nextval).padStart(4, "0")}`;
 }
 
 export async function createQuoteAction(
@@ -108,8 +112,10 @@ export async function updateQuoteStatusAction(id: string, formData: FormData) {
 
 async function generateInvoiceNumber() {
   const year = new Date().getFullYear();
-  const count = await prisma.invoice.count();
-  return `INV-${year}-${String(count + 1).padStart(4, "0")}`;
+  const [{ nextval }] = await prisma.$queryRaw<{ nextval: bigint }[]>`
+    SELECT nextval('invoice_number_seq') AS nextval
+  `;
+  return `INV-${year}-${String(nextval).padStart(4, "0")}`;
 }
 
 export async function convertQuoteToInvoiceAction(id: string) {

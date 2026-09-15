@@ -44,10 +44,14 @@ function parseShipmentForm(formData: FormData) {
   });
 }
 
+// nextval() on a Postgres sequence is atomic, so concurrent shipment
+// creation can never collide on the same tracking reference.
 async function generateReference() {
   const year = new Date().getFullYear();
-  const count = await prisma.shipment.count();
-  return `PSX-${year}-${String(count + 1).padStart(4, "0")}`;
+  const [{ nextval }] = await prisma.$queryRaw<{ nextval: bigint }[]>`
+    SELECT nextval('shipment_reference_seq') AS nextval
+  `;
+  return `PSX-${year}-${String(nextval).padStart(4, "0")}`;
 }
 
 export async function createShipmentAction(

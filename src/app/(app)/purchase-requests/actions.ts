@@ -22,10 +22,14 @@ const purchaseRequestSchema = z.object({
   notes: z.string().optional().or(z.literal("")),
 });
 
+// nextval() on a Postgres sequence is atomic, so concurrent request
+// creation can never collide on the same number.
 async function generateRequestNumber() {
   const year = new Date().getFullYear();
-  const count = await prisma.purchaseRequest.count();
-  return `PR-${year}-${String(count + 1).padStart(4, "0")}`;
+  const [{ nextval }] = await prisma.$queryRaw<{ nextval: bigint }[]>`
+    SELECT nextval('purchase_request_number_seq') AS nextval
+  `;
+  return `PR-${year}-${String(nextval).padStart(4, "0")}`;
 }
 
 export async function createPurchaseRequestAction(
