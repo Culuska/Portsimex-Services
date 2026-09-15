@@ -29,7 +29,10 @@ export default async function NewQuotePage({
 
   return (
     <div>
-      <PageHeader title="New quote" />
+      <PageHeader
+        title="New quote"
+        description={`A quote number (QT-${new Date().getFullYear()}-XXXX) is assigned automatically when you save -- no need to enter one.`}
+      />
       <QuoteForm
         clients={clients.map((c) => ({
           ...c,

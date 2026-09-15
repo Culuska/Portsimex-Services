@@ -18,7 +18,10 @@ export default async function NewInvoicePage({
 
   return (
     <div>
-      <PageHeader title="New invoice" />
+      <PageHeader
+        title="New invoice"
+        description={`An invoice number (INV-${new Date().getFullYear()}-XXXX) is assigned automatically when you save -- no need to enter one.`}
+      />
       <InvoiceForm clients={clients} shipments={shipments} defaultShipmentId={shipmentId} />
     </div>
   );

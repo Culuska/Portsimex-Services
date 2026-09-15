@@ -20,7 +20,10 @@ export default async function NewPurchaseRequestPage({
 
   return (
     <div>
-      <PageHeader title="New purchase request" />
+      <PageHeader
+        title="New purchase request"
+        description={`A request number (PR-${new Date().getFullYear()}-XXXX) is assigned automatically when you save -- no need to enter one.`}
+      />
       <PurchaseRequestForm
         vendors={vendors}
         shipments={shipments}

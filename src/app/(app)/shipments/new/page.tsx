@@ -11,7 +11,10 @@ export default async function NewShipmentPage() {
 
   return (
     <div>
-      <PageHeader title="New shipment" description="Create an operational job" />
+      <PageHeader
+        title="New shipment"
+        description={`Create an operational job -- a tracking reference (PSX-${new Date().getFullYear()}-XXXX) is assigned automatically when you save.`}
+      />
       <ShipmentForm
         action={createShipmentAction}
         clients={clients}
