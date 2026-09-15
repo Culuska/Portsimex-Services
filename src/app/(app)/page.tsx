@@ -1,10 +1,27 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { invoiceBalance } from "@/lib/invoices";
 import { Badge, Card, EmptyState, PageHeader, StatCard } from "@/components/ui";
 
+// Scoped roles land on their own portal -- this dashboard shows
+// company-wide financial data that isn't appropriate for them to see.
+const ROLE_HOME: Record<string, string> = {
+  VENDOR: "/my-shipments",
+  MINISTRY_OFFICER: "/ministry",
+  MINISTRY_REGISTRAR: "/ministries",
+  LOGISTICS_STAFF: "/deliveries",
+};
+
 export default async function DashboardPage() {
+  const session = await auth();
+  const home = session ? ROLE_HOME[session.user.role] : undefined;
+  if (home) {
+    redirect(home);
+  }
+
   const [
     shipments,
     invoices,

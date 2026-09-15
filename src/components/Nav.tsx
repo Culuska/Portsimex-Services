@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { Role } from "@/lib/roles";
 
-const links = [
+const opsLinks = [
   { href: "/", label: "Dashboard" },
   { href: "/shipments", label: "Shipments" },
   { href: "/quotes", label: "Quotes" },
@@ -14,15 +15,37 @@ const links = [
   { href: "/vendors", label: "Vendors" },
 ];
 
+const adminExtraLinks = [
+  { href: "/users", label: "Users" },
+  { href: "/ministries", label: "Ministries" },
+  { href: "/ministry", label: "Ministry Queue" },
+  { href: "/deliveries", label: "Deliveries" },
+];
+
+// Roles scoped to the ministry-clearance module get a focused menu instead
+// of the full internal ops app (which shows every client's data).
+const roleLinks: Partial<Record<Role, { href: string; label: string }[]>> = {
+  MINISTRY_REGISTRAR: [{ href: "/ministries", label: "Ministries" }],
+  MINISTRY_OFFICER: [{ href: "/ministry", label: "Ministry Queue" }],
+  VENDOR: [{ href: "/my-shipments", label: "My Shipments" }],
+  LOGISTICS_STAFF: [{ href: "/deliveries", label: "Deliveries" }],
+};
+
 export default function Nav({
-  isAdmin,
+  role,
   onNavigate,
 }: {
-  isAdmin: boolean;
+  role: Role;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const items = isAdmin ? [...links, { href: "/users", label: "Users" }] : links;
+
+  const items =
+    role === "ADMIN"
+      ? [...opsLinks, ...adminExtraLinks]
+      : role === "STAFF"
+        ? opsLinks
+        : (roleLinks[role] ?? []);
 
   return (
     <nav className="flex flex-col gap-1">

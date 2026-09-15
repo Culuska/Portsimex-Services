@@ -1,17 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import Nav from "./Nav";
 import SignOutButton from "./SignOutButton";
+import type { Role } from "@/lib/roles";
 
 export default function MobileMenu({
-  isAdmin,
+  role,
   userName,
   userRole,
+  unreadCount,
 }: {
-  isAdmin: boolean;
+  role: Role;
   userName?: string | null;
   userRole: string;
+  unreadCount: number;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -72,9 +76,21 @@ export default function MobileMenu({
                   </svg>
                 </button>
               </div>
-              <Nav isAdmin={isAdmin} onNavigate={() => setOpen(false)} />
+              <Nav role={role} onNavigate={() => setOpen(false)} />
             </div>
             <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4">
+              <Link
+                href="/notifications"
+                onClick={() => setOpen(false)}
+                className="mb-3 flex items-center justify-between rounded-md px-1 py-1 text-sm text-zinc-600 dark:text-zinc-300"
+              >
+                Notifications
+                {unreadCount > 0 && (
+                  <span className="rounded-full bg-accent-600 px-2 py-0.5 text-xs font-medium text-white">
+                    {unreadCount}
+                  </span>
+                )}
+              </Link>
               <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">{userName}</p>
               <p className="text-xs text-zinc-500">{userRole}</p>
               <div className="mt-2">

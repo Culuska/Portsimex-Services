@@ -7,6 +7,14 @@ import { invoiceBalance, invoiceTotal } from "@/lib/invoices";
 import ShipmentForm from "../ShipmentForm";
 import { updateShipmentAction } from "../actions";
 
+const CLEARANCE_STATUS_LABELS: Record<string, string> = {
+  NOT_STARTED: "Not started",
+  IN_REVIEW: "In review",
+  AWAITING_VENDOR_CORRECTION: "Awaiting vendor correction",
+  CLEARED_FOR_DELIVERY: "Cleared for delivery",
+  REJECTED: "Rejected",
+};
+
 export default async function ShipmentDetailPage({
   params,
 }: {
@@ -68,6 +76,24 @@ export default async function ShipmentDetailPage({
         </Card>
 
         <div className="flex flex-col gap-6">
+          <Card>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                Ministry clearance
+              </h2>
+              <Badge status={shipment.clearanceStatus} />
+            </div>
+            <p className="mb-3 text-sm text-zinc-500">
+              {CLEARANCE_STATUS_LABELS[shipment.clearanceStatus]}
+            </p>
+            <Link
+              href={`/my-shipments/${shipment.id}`}
+              className="text-sm text-brand-600 hover:underline"
+            >
+              View documents &amp; approval timeline →
+            </Link>
+          </Card>
+
           <Card>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Quotes</h2>

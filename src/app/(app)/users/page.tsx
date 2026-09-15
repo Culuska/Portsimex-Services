@@ -10,7 +10,10 @@ export default async function UsersPage() {
     redirect("/");
   }
 
-  const users = await prisma.user.findMany({ orderBy: { createdAt: "asc" } });
+  const users = await prisma.user.findMany({
+    orderBy: { createdAt: "asc" },
+    include: { ministry: true, vendorClient: true },
+  });
 
   return (
     <div>
@@ -26,6 +29,7 @@ export default async function UsersPage() {
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Email</th>
               <th className="px-4 py-3 font-medium">Role</th>
+              <th className="px-4 py-3 font-medium">Scope</th>
               <th className="px-4 py-3 font-medium">Joined</th>
             </tr>
           </thead>
@@ -34,7 +38,10 @@ export default async function UsersPage() {
               <tr key={u.id}>
                 <td className="px-4 py-3 text-zinc-900 dark:text-zinc-50">{u.name}</td>
                 <td className="px-4 py-3 text-zinc-500">{u.email}</td>
-                <td className="px-4 py-3 text-zinc-500">{u.role}</td>
+                <td className="px-4 py-3 text-zinc-500">{u.role.replace(/_/g, " ")}</td>
+                <td className="px-4 py-3 text-zinc-500">
+                  {u.ministry?.name ?? u.vendorClient?.name ?? "—"}
+                </td>
                 <td className="px-4 py-3 text-zinc-500">{formatDate(u.createdAt)}</td>
               </tr>
             ))}

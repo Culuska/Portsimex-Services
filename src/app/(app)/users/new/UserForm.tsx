@@ -1,12 +1,28 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createUserAction } from "../actions";
 
-export default function UserForm() {
+const ROLE_LABELS: Record<string, string> = {
+  STAFF: "Staff",
+  ADMIN: "Admin (SuperAdmin)",
+  MINISTRY_REGISTRAR: "Ministry Registrar",
+  MINISTRY_OFFICER: "Ministry Officer",
+  VENDOR: "Vendor",
+  LOGISTICS_STAFF: "Logistics Staff",
+};
+
+export default function UserForm({
+  ministries,
+  clients,
+}: {
+  ministries: { id: string; name: string }[];
+  clients: { id: string; name: string }[];
+}) {
   const [state, formAction, pending] = useActionState(createUserAction, {
     error: null,
   });
+  const [role, setRole] = useState("STAFF");
 
   return (
     <form action={formAction} className="flex flex-col gap-4 max-w-md">
@@ -53,13 +69,63 @@ export default function UserForm() {
         <select
           id="role"
           name="role"
-          defaultValue="STAFF"
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
           className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         >
-          <option value="STAFF">Staff</option>
-          <option value="ADMIN">Admin</option>
+          {Object.entries(ROLE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
         </select>
       </div>
+
+      {(role === "MINISTRY_OFFICER" || role === "MINISTRY_REGISTRAR") && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor="ministryId" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Ministry
+          </label>
+          <select
+            id="ministryId"
+            name="ministryId"
+            required
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="">Select a ministry</option>
+            {ministries.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {role === "VENDOR" && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor="vendorClientId" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Vendor company (Client)
+          </label>
+          <select
+            id="vendorClientId"
+            name="vendorClientId"
+            required
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="">Select a client</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-zinc-500">
+            This user will only be able to see shipments/documents for this client.
+          </p>
+        </div>
+      )}
+
       {state.error && (
         <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
       )}
