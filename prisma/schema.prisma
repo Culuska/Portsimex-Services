@@ -206,6 +206,10 @@ model User {
 model Client {
   id            String         @id @default(cuid())
   name          String
+  // Immutable 5-character uppercase code derived from the name at
+  // creation (see lib/client-mnemonic.ts), e.g. "Atlas Trading Co." ->
+  // "ATLAS". A short, memorable reference distinct from the client's id.
+  mnemonic      String         @unique
   email         String?
   phone         String?
   address       String?
@@ -349,6 +353,9 @@ model Invoice {
   payments           Payment[]
   ledgerTransactions LedgerTransaction[]
 
+  // Speeds up "this client's open/unbilled invoices" lookups as the table
+  // grows, instead of a sequential scan filtered by status in app code.
+  @@index([clientId, status])
   @@map("invoices")
 }
 
@@ -536,6 +543,9 @@ model PurchaseRequest {
 
   quoteItem QuoteItem?
 
+  // Speeds up "this client's approved-but-unquoted purchase requests"
+  // lookups as the table grows (the New Quote cascade picker).
+  @@index([clientId, status])
   @@map("purchase_requests")
 }
 
@@ -558,6 +568,9 @@ model Quote {
   items   QuoteItem[]
   invoice Invoice?
 
+  // Speeds up "this client's in-process quotes" lookups as the table
+  // grows (e.g. the New Invoice cascade picker).
+  @@index([clientId, status])
   @@map("quotes")
 }
 

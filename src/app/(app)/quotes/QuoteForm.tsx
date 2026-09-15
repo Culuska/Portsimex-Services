@@ -68,6 +68,7 @@ export default function QuoteForm({
   }
 
   const selectedClient = clients.find((c) => c.id === clientId);
+  const clientShipments = clientId ? shipments.filter((s) => s.clientId === clientId) : shipments;
   const linkedPurchaseRequestIds = new Set(
     items.map((i) => i.purchaseRequestId).filter((id): id is string => Boolean(id)),
   );
@@ -142,12 +143,15 @@ export default function QuoteForm({
             className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="">None</option>
-            {shipments.map((s) => (
+            {clientShipments.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.reference}
               </option>
             ))}
           </select>
+          {clientId && clientShipments.length === 0 && (
+            <p className="text-xs text-zinc-500">No shipments yet for this client.</p>
+          )}
         </div>
       </div>
 

@@ -2,6 +2,7 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { deriveMnemonicBase } from "../src/lib/client-mnemonic";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -56,6 +57,7 @@ async function main() {
     create: {
       id: "seed-client-1",
       name: "Atlas Trading Co.",
+      mnemonic: deriveMnemonicBase("Atlas Trading Co."),
       email: "ops@atlastrading.example",
       phone: "+252-61-000-0000",
       address: "Mogadishu Port Road, Mogadishu",

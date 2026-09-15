@@ -38,7 +38,7 @@ export default async function ClientDetailPage({
     <div>
       <PageHeader
         title={client.name}
-        description="Client details"
+        description={`Client details · Code ${client.mnemonic}`}
         action={<Badge status={client.stage} />}
       />
 

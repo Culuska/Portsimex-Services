@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { SERVICE_TYPES, RATE_BASED_SERVICE_TYPES, AGREEMENT_TYPES } from "@/lib/services";
+import { deriveMnemonicBase, resolveMnemonicCollision } from "@/lib/client-mnemonic";
 
 const clientStages = ["PROSPECT", "ACTIVE", "DORMANT", "LOST"] as const;
 
@@ -62,9 +63,18 @@ export async function createClientAction(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
+  // Immutable, generated once here -- editing the client later never
+  // touches it (see updateClientAction below).
+  const existingMnemonics = await prisma.client.findMany({ select: { mnemonic: true } });
+  const mnemonic = resolveMnemonicCollision(
+    deriveMnemonicBase(parsed.data.name),
+    new Set(existingMnemonics.map((c) => c.mnemonic)),
+  );
+
   const client = await prisma.client.create({
     data: {
       name: parsed.data.name,
+      mnemonic,
       email: parsed.data.email || null,
       phone: parsed.data.phone || null,
       address: parsed.data.address || null,

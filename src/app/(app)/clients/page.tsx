@@ -22,6 +22,7 @@ export default async function ClientsPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-zinc-200 dark:border-zinc-800 text-zinc-500">
               <tr>
+                <th className="px-4 py-3 font-medium">Code</th>
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Stage</th>
                 <th className="px-4 py-3 font-medium">Contact</th>
@@ -32,6 +33,7 @@ export default async function ClientsPage() {
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {clients.map((c) => (
                 <tr key={c.id}>
+                  <td className="px-4 py-3 font-mono text-xs text-zinc-500">{c.mnemonic}</td>
                   <td className="px-4 py-3">
                     <Link
                       href={`/clients/${c.id}`}
