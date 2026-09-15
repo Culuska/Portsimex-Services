@@ -14,10 +14,10 @@ export default async function ShipmentsPage() {
       <PageHeader
         title="Shipments"
         description="Operational jobs — imports, exports, and transshipments"
-        action={<ButtonLink href="/shipments/new">New shipment</ButtonLink>}
+        action={<ButtonLink href="/quotes">Start from an accepted quote</ButtonLink>}
       />
       {shipments.length === 0 ? (
-        <EmptyState message="No shipments yet. Create your first job to get started." />
+        <EmptyState message="No shipments yet. A shipment starts from an accepted quote -- open one on the Quotes page and use &quot;Start shipment&quot;." />
       ) : (
         <Card className="p-0">
           <table className="w-full text-left text-sm">

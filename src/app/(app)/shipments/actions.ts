@@ -72,50 +72,76 @@ function modeScopedData(data: z.infer<typeof shipmentSchema>) {
   };
 }
 
-function parseShipmentForm(formData: FormData) {
-  return shipmentSchema.safeParse(readShipmentForm(formData));
-}
-
-// nextval() on a Postgres sequence is atomic, so concurrent shipment
-// creation can never collide on the same tracking reference.
-async function generateReference() {
-  const year = new Date().getFullYear();
-  const [{ nextval }] = await prisma.$queryRaw<{ nextval: bigint }[]>`
-    SELECT nextval('shipment_reference_seq') AS nextval
-  `;
-  return `PSX-${year}-${String(nextval).padStart(4, "0")}`;
-}
+// A shipment only exists once a client has accepted a quote -- it is not
+// a standalone record you create up front. Its tracking reference is the
+// accepted quote's own number (e.g. QT-2026-0007), never a separately
+// generated one, so the same identifier follows the job from quotation
+// through to delivery.
+const createSchema = shipmentSchema.extend({
+  quoteId: z.string().min(1, "An accepted quote is required to start a shipment"),
+});
 
 export async function createShipmentAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
   await requireUser();
-  const parsed = parseShipmentForm(formData);
+  const parsed = createSchema.safeParse({
+    ...readShipmentForm(formData),
+    quoteId: formData.get("quoteId"),
+  });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const reference = await generateReference();
+  const quote = await prisma.quote.findUnique({ where: { id: parsed.data.quoteId } });
+  if (!quote || quote.status !== "ACCEPTED") {
+    return { error: "This quote is no longer available to start a shipment from." };
+  }
+  if (quote.shipmentId) {
+    return { error: "This quote already has a shipment." };
+  }
+  if (quote.clientId !== parsed.data.clientId) {
+    return { error: "Client does not match the quote." };
+  }
 
-  const shipment = await prisma.shipment.create({
-    data: {
-      reference,
-      clientId: parsed.data.clientId,
-      assigneeId: parsed.data.assigneeId || null,
-      type: parsed.data.type,
-      transportMode: parsed.data.transportMode,
-      origin: parsed.data.origin,
-      destination: parsed.data.destination,
-      cargoDescription: parsed.data.cargoDescription || null,
-      etd: parsed.data.etd ? new Date(parsed.data.etd) : null,
-      eta: parsed.data.eta ? new Date(parsed.data.eta) : null,
-      ...modeScopedData(parsed.data),
-    },
-  });
+  let shipmentId: string;
+  try {
+    const shipment = await prisma.$transaction(async (tx) => {
+      const created = await tx.shipment.create({
+        data: {
+          reference: quote.quoteNumber,
+          clientId: parsed.data.clientId,
+          assigneeId: parsed.data.assigneeId || null,
+          type: parsed.data.type,
+          transportMode: parsed.data.transportMode,
+          origin: parsed.data.origin,
+          destination: parsed.data.destination,
+          cargoDescription: parsed.data.cargoDescription || null,
+          etd: parsed.data.etd ? new Date(parsed.data.etd) : null,
+          eta: parsed.data.eta ? new Date(parsed.data.eta) : null,
+          ...modeScopedData(parsed.data),
+        },
+      });
+      // Guards the same race the unique reference constraint would also
+      // catch: only succeeds if this quote is still unclaimed.
+      const linked = await tx.quote.updateMany({
+        where: { id: quote.id, shipmentId: null },
+        data: { shipmentId: created.id },
+      });
+      if (linked.count === 0) {
+        throw new Error("This quote already has a shipment.");
+      }
+      return created;
+    });
+    shipmentId = shipment.id;
+  } catch {
+    return { error: "This quote already has a shipment." };
+  }
 
   revalidatePath("/shipments");
-  redirect(`/shipments/${shipment.id}`);
+  revalidatePath(`/quotes/${quote.id}`);
+  redirect(`/shipments/${shipmentId}`);
 }
 
 const updateSchema = shipmentSchema.extend({

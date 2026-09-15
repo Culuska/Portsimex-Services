@@ -141,6 +141,37 @@ export default async function QuoteDetailPage({
 
         <div className="flex flex-col gap-6">
           <Card>
+            <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">Shipment</h2>
+            {quote.shipment ? (
+              <div>
+                <p className="text-sm text-zinc-500">Operational job started as</p>
+                <Link
+                  href={`/shipments/${quote.shipment.id}`}
+                  className="text-sm font-medium text-zinc-900 hover:underline dark:text-zinc-50"
+                >
+                  {quote.shipment.reference}
+                </Link>
+              </div>
+            ) : quote.status === "ACCEPTED" ? (
+              <>
+                <p className="mb-3 text-sm text-zinc-500">
+                  The shipment will use {quote.quoteNumber} as its tracking reference.
+                </p>
+                <Link
+                  href={`/shipments/new?quoteId=${quote.id}`}
+                  className="inline-block rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+                >
+                  Start shipment
+                </Link>
+              </>
+            ) : (
+              <p className="text-sm text-zinc-500">
+                Mark this quote as Accepted to start the operational shipment.
+              </p>
+            )}
+          </Card>
+
+          <Card>
             <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">
               Convert to invoice
             </h2>

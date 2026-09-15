@@ -36,10 +36,16 @@ export default function ShipmentForm({
   defaultValues,
   submitLabel,
   showStatus = false,
+  fromQuote,
 }: {
   action: ShipmentFormAction;
   clients: { id: string; name: string }[];
   users: { id: string; name: string }[];
+  // Present only when creating a shipment from an accepted quote: locks
+  // the client to the quote's client and carries the quote's number
+  // through as a hidden field -- that number becomes the shipment's
+  // tracking reference server-side (see createShipmentAction).
+  fromQuote?: { id: string; quoteNumber: string; clientId: string; clientName: string };
   defaultValues?: {
     clientId: string;
     assigneeId: string | null;
@@ -66,25 +72,50 @@ export default function ShipmentForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-4 max-w-2xl">
+      {fromQuote && (
+        <div className="rounded-md border border-brand-200 dark:border-brand-900 bg-brand-50 dark:bg-brand-950 p-3 text-sm">
+          <p className="font-medium text-zinc-900 dark:text-zinc-50">
+            Starting from accepted quote {fromQuote.quoteNumber}
+          </p>
+          <p className="mt-1 text-zinc-600 dark:text-zinc-300">
+            This shipment will use <span className="font-mono">{fromQuote.quoteNumber}</span> as
+            its tracking reference -- the same number follows the job from quotation through to
+            delivery.
+          </p>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="clientId" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             Client
           </label>
-          <select
-            id="clientId"
-            name="clientId"
-            required
-            defaultValue={defaultValues?.clientId}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="">Select a client</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          {fromQuote ? (
+            <>
+              <input
+                type="text"
+                readOnly
+                value={fromQuote.clientName}
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-500 outline-none"
+              />
+              <input type="hidden" name="clientId" value={fromQuote.clientId} />
+              <input type="hidden" name="quoteId" value={fromQuote.id} />
+            </>
+          ) : (
+            <select
+              id="clientId"
+              name="clientId"
+              required
+              defaultValue={defaultValues?.clientId}
+              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">Select a client</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="assigneeId" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
