@@ -4,9 +4,9 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireAdmin, requireUser } from "@/lib/session";
 
-const shipmentTypes = ["IMPORT", "EXPORT", "TRANSSHIPMENT", "DOMESTIC"] as const;
+const shipmentTypes = ["IMPORT", "EXPORT", "TRANSSHIPMENT", "DOMESTIC", "CUSTOMS_CLEARANCE"] as const;
 const transportModes = ["SEA", "AIR", "ROAD"] as const;
 const shipmentStatuses = [
   "PENDING",
@@ -81,11 +81,14 @@ const createSchema = shipmentSchema.extend({
   quoteId: z.string().min(1, "An accepted quote is required to start a shipment"),
 });
 
+// Operations lead (ADMIN) approval gate: a client accepting a quote is
+// not enough on its own to start the operational job -- only an admin can
+// actually commit to it becoming a shipment.
 export async function createShipmentAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireUser();
+  await requireAdmin();
   const parsed = createSchema.safeParse({
     ...readShipmentForm(formData),
     quoteId: formData.get("quoteId"),
@@ -103,6 +106,9 @@ export async function createShipmentAction(
   }
   if (quote.clientId !== parsed.data.clientId) {
     return { error: "Client does not match the quote." };
+  }
+  if (quote.type !== parsed.data.type) {
+    return { error: "Job type does not match the quote." };
   }
 
   let shipmentId: string;

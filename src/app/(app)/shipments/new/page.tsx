@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { EmptyState, PageHeader } from "@/components/ui";
 import ShipmentForm from "../ShipmentForm";
@@ -9,7 +10,7 @@ export default async function NewShipmentPage({
 }: {
   searchParams: Promise<{ quoteId?: string }>;
 }) {
-  const { quoteId } = await searchParams;
+  const [session, { quoteId }] = await Promise.all([auth(), searchParams]);
 
   const quote = quoteId
     ? await prisma.quote.findUnique({ where: { id: quoteId }, include: { client: true } })
@@ -38,6 +39,23 @@ export default async function NewShipmentPage({
     );
   }
 
+  // Client acceptance alone isn't enough to commit to the job -- only an
+  // admin can actually start the shipment (see createShipmentAction).
+  if (session?.user.role !== "ADMIN") {
+    return (
+      <div>
+        <PageHeader title="New shipment" />
+        <EmptyState message="Only an admin can start a shipment from an accepted quote." />
+        <Link
+          href={`/quotes/${quote.id}`}
+          className="mt-4 inline-block text-sm text-brand-600 hover:underline dark:text-brand-400"
+        >
+          Back to {quote.quoteNumber}
+        </Link>
+      </div>
+    );
+  }
+
   const users = await prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } });
 
   return (
@@ -53,6 +71,7 @@ export default async function NewShipmentPage({
           quoteNumber: quote.quoteNumber,
           clientId: quote.clientId,
           clientName: quote.client.name,
+          type: quote.type,
         }}
       />
     </div>

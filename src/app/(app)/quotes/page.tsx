@@ -4,6 +4,14 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { invoiceTotal } from "@/lib/invoices";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 
+const TYPE_LABELS: Record<string, string> = {
+  IMPORT: "Import",
+  EXPORT: "Export",
+  TRANSSHIPMENT: "Transshipment",
+  DOMESTIC: "Domestic",
+  CUSTOMS_CLEARANCE: "Customs clearance",
+};
+
 export default async function QuotesPage() {
   const quotes = await prisma.quote.findMany({
     orderBy: { issueDate: "desc" },
@@ -26,6 +34,7 @@ export default async function QuotesPage() {
               <tr>
                 <th className="px-4 py-3 font-medium">Quote</th>
                 <th className="px-4 py-3 font-medium">Client</th>
+                <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Valid until</th>
                 <th className="px-4 py-3 font-medium text-right">Total</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -44,6 +53,7 @@ export default async function QuotesPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-zinc-500">{q.client.name}</td>
+                  <td className="px-4 py-3 text-zinc-500">{TYPE_LABELS[q.type] ?? q.type}</td>
                   <td className="px-4 py-3 text-zinc-500">{formatDate(q.expiryDate)}</td>
                   <td className="px-4 py-3 text-right text-zinc-500">
                     {formatCurrency(invoiceTotal(q.items))}

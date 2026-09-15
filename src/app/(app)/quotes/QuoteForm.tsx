@@ -16,6 +16,14 @@ type LineItem = {
   purchaseRequestId?: string;
 };
 
+const TYPES = [
+  { value: "IMPORT", label: "Import" },
+  { value: "EXPORT", label: "Export" },
+  { value: "TRANSSHIPMENT", label: "Transshipment" },
+  { value: "DOMESTIC", label: "Domestic" },
+  { value: "CUSTOMS_CLEARANCE", label: "Customs clearance" },
+] as const;
+
 export default function QuoteForm({
   clients,
   shipments,
@@ -133,26 +141,49 @@ export default function QuoteForm({
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label htmlFor="shipmentId" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Linked shipment (optional)
+          <label htmlFor="type" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Job type
           </label>
           <select
-            id="shipmentId"
-            name="shipmentId"
-            defaultValue={defaultShipmentId ?? ""}
+            id="type"
+            name="type"
+            required
+            defaultValue="IMPORT"
             className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           >
-            <option value="">None</option>
-            {clientShipments.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.reference}
+            {TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
               </option>
             ))}
           </select>
-          {clientId && clientShipments.length === 0 && (
-            <p className="text-xs text-zinc-500">No shipments yet for this client.</p>
-          )}
+          <p className="text-xs text-zinc-500">
+            Carried over to the shipment when this quote is accepted and started.
+          </p>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor="shipmentId" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Linked shipment (optional, rare)
+        </label>
+        <select
+          id="shipmentId"
+          name="shipmentId"
+          defaultValue={defaultShipmentId ?? ""}
+          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          <option value="">None</option>
+          {clientShipments.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.reference}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-zinc-500">
+          Only for a follow-up quote against a shipment that already exists -- new shipments
+          normally start from an accepted quote instead (see the quote page once accepted).
+        </p>
       </div>
 
       <div className="flex flex-col gap-1">

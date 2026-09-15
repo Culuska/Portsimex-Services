@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -12,6 +13,13 @@ import {
 } from "../actions";
 
 const STATUSES = ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"] as const;
+const TYPE_LABELS: Record<string, string> = {
+  IMPORT: "Import",
+  EXPORT: "Export",
+  TRANSSHIPMENT: "Transshipment",
+  DOMESTIC: "Domestic",
+  CUSTOMS_CLEARANCE: "Customs clearance",
+};
 
 export default async function QuoteDetailPage({
   params,
@@ -19,18 +27,22 @@ export default async function QuoteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const quote = await prisma.quote.findUnique({
-    where: { id },
-    include: {
-      client: true,
-      shipment: true,
-      items: true,
-      invoice: true,
-    },
-  });
+  const [session, quote] = await Promise.all([
+    auth(),
+    prisma.quote.findUnique({
+      where: { id },
+      include: {
+        client: true,
+        shipment: true,
+        items: true,
+        invoice: true,
+      },
+    }),
+  ]);
 
   if (!quote) notFound();
 
+  const isAdmin = session?.user.role === "ADMIN";
   const total = invoiceTotal(quote.items);
   const boundStatus = updateQuoteStatusAction.bind(null, quote.id);
   const boundConvert = convertQuoteToInvoiceAction.bind(null, quote.id);
@@ -40,7 +52,7 @@ export default async function QuoteDetailPage({
     <div>
       <PageHeader
         title={quote.quoteNumber}
-        description={`${quote.client.name}${quote.shipment ? ` · ${quote.shipment.reference}` : ""}`}
+        description={`${quote.client.name} · ${TYPE_LABELS[quote.type] ?? quote.type}${quote.shipment ? ` · ${quote.shipment.reference}` : ""}`}
         action={
           <div className="flex items-center gap-3">
             <Link
@@ -157,16 +169,22 @@ export default async function QuoteDetailPage({
                 <p className="mb-3 text-sm text-zinc-500">
                   The shipment will use {quote.quoteNumber} as its tracking reference.
                 </p>
-                <Link
-                  href={`/shipments/new?quoteId=${quote.id}`}
-                  className="inline-block rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-                >
-                  Start shipment
-                </Link>
+                {isAdmin ? (
+                  <Link
+                    href={`/shipments/new?quoteId=${quote.id}`}
+                    className="inline-block rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+                  >
+                    Start shipment
+                  </Link>
+                ) : (
+                  <p className="text-sm text-zinc-500">
+                    Waiting on an admin to approve and start the shipment.
+                  </p>
+                )}
               </>
             ) : (
               <p className="text-sm text-zinc-500">
-                Mark this quote as Accepted to start the operational shipment.
+                Mark this quote as Accepted, then an admin can start the operational shipment.
               </p>
             )}
           </Card>

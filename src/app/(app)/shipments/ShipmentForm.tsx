@@ -8,7 +8,14 @@ type ShipmentFormAction = (
   formData: FormData,
 ) => Promise<ActionState>;
 
-const TYPES = ["IMPORT", "EXPORT", "TRANSSHIPMENT", "DOMESTIC"] as const;
+const TYPES = ["IMPORT", "EXPORT", "TRANSSHIPMENT", "DOMESTIC", "CUSTOMS_CLEARANCE"] as const;
+const TYPE_LABELS: Record<string, string> = {
+  IMPORT: "Import",
+  EXPORT: "Export",
+  TRANSSHIPMENT: "Transshipment",
+  DOMESTIC: "Domestic",
+  CUSTOMS_CLEARANCE: "Customs clearance",
+};
 const TRANSPORT_MODES = [
   { value: "SEA", label: "Sea" },
   { value: "AIR", label: "Air" },
@@ -42,10 +49,16 @@ export default function ShipmentForm({
   clients: { id: string; name: string }[];
   users: { id: string; name: string }[];
   // Present only when creating a shipment from an accepted quote: locks
-  // the client to the quote's client and carries the quote's number
-  // through as a hidden field -- that number becomes the shipment's
-  // tracking reference server-side (see createShipmentAction).
-  fromQuote?: { id: string; quoteNumber: string; clientId: string; clientName: string };
+  // the client and job type to the quote's, and carries the quote's
+  // number through as a hidden field -- that number becomes the
+  // shipment's tracking reference server-side (see createShipmentAction).
+  fromQuote?: {
+    id: string;
+    quoteNumber: string;
+    clientId: string;
+    clientName: string;
+    type: string;
+  };
   defaultValues?: {
     clientId: string;
     assigneeId: string | null;
@@ -142,18 +155,30 @@ export default function ShipmentForm({
           <label htmlFor="type" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             Type
           </label>
-          <select
-            id="type"
-            name="type"
-            defaultValue={defaultValues?.type ?? "IMPORT"}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            {TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          {fromQuote ? (
+            <>
+              <input
+                type="text"
+                readOnly
+                value={TYPE_LABELS[fromQuote.type] ?? fromQuote.type}
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-500 outline-none"
+              />
+              <input type="hidden" name="type" value={fromQuote.type} />
+            </>
+          ) : (
+            <select
+              id="type"
+              name="type"
+              defaultValue={defaultValues?.type ?? "IMPORT"}
+              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              {TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {TYPE_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="transportMode" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">

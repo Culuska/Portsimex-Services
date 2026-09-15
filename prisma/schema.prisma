@@ -21,6 +21,7 @@ enum ShipmentType {
   EXPORT
   TRANSSHIPMENT
   DOMESTIC
+  CUSTOMS_CLEARANCE
 }
 
 // Physical mode of transport, independent of ShipmentType (an IMPORT can
@@ -570,14 +571,18 @@ model PurchaseRequest {
 }
 
 model Quote {
-  id          String      @id @default(cuid())
-  quoteNumber String      @unique
-  status      QuoteStatus @default(DRAFT)
-  issueDate   DateTime    @default(now())
+  id          String       @id @default(cuid())
+  quoteNumber String       @unique
+  status      QuoteStatus  @default(DRAFT)
+  // What kind of job this will become once accepted -- set here, at
+  // quote time, since the Shipment itself doesn't exist yet. Copied onto
+  // the Shipment unchanged when "Start shipment" creates it.
+  type        ShipmentType @default(IMPORT)
+  issueDate   DateTime     @default(now())
   expiryDate  DateTime?
   notes       String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   client   Client @relation(fields: [clientId], references: [id])
   clientId String

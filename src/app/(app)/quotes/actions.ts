@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/session";
 import { SERVICE_TYPES } from "@/lib/services";
 
 const quoteStatuses = ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"] as const;
+const shipmentTypes = ["IMPORT", "EXPORT", "TRANSSHIPMENT", "DOMESTIC", "CUSTOMS_CLEARANCE"] as const;
 
 const lineItemSchema = z.object({
   description: z.string().min(1),
@@ -19,6 +20,7 @@ const lineItemSchema = z.object({
 
 const quoteSchema = z.object({
   clientId: z.string().min(1, "Client is required"),
+  type: z.enum(shipmentTypes),
   shipmentId: z.string().optional().or(z.literal("")),
   expiryDate: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
@@ -59,6 +61,7 @@ export async function createQuoteAction(
 
   const parsed = quoteSchema.safeParse({
     clientId: formData.get("clientId"),
+    type: formData.get("type"),
     shipmentId: formData.get("shipmentId"),
     expiryDate: formData.get("expiryDate"),
     notes: formData.get("notes"),
@@ -75,6 +78,7 @@ export async function createQuoteAction(
     data: {
       quoteNumber,
       clientId: parsed.data.clientId,
+      type: parsed.data.type,
       shipmentId: parsed.data.shipmentId || null,
       expiryDate: parsed.data.expiryDate ? new Date(parsed.data.expiryDate) : null,
       notes: parsed.data.notes || null,
