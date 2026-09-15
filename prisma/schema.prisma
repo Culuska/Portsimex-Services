@@ -10,6 +10,10 @@ datasource db {
 enum Role {
   ADMIN
   STAFF
+  MINISTRY_REGISTRAR
+  MINISTRY_OFFICER
+  VENDOR
+  LOGISTICS_STAFF
 }
 
 enum ShipmentType {
@@ -95,6 +99,50 @@ enum ServiceType {
   EMPLOYMENT_PAYMENT
 }
 
+enum ApprovalStepStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  CORRECTION_REQUESTED
+}
+
+enum ApprovalActionType {
+  APPROVE
+  REJECT
+  REQUEST_CORRECTION
+}
+
+// Clearance status is a separate axis from Shipment.status (which tracks
+// physical/operational shipment progress). This tracks the ministry
+// approval chain specifically, and only applies once a chain is started.
+enum ClearanceStatus {
+  NOT_STARTED
+  IN_REVIEW
+  AWAITING_VENDOR_CORRECTION
+  CLEARED_FOR_DELIVERY
+  REJECTED
+}
+
+enum DeliveryMode {
+  AIRPORT
+  SEAPORT
+}
+
+// Terminal state for this module. `status` is left on the record as the
+// integration seam for a future delivery/shipping module to update
+// (e.g. IN_TRANSIT, DELIVERED) without this module needing to change.
+enum DeliveryRecordStatus {
+  PENDING
+  COMPLETED
+}
+
+enum NotificationType {
+  CORRECTION_REQUESTED
+  MINISTRY_ACTION_TAKEN
+  SHIPMENT_CLEARED
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -110,11 +158,26 @@ model User {
   purchaseRequests        PurchaseRequest[] @relation("PurchaseRequestRequestedBy")
   decidedPurchaseRequests PurchaseRequest[] @relation("PurchaseRequestDecidedBy")
 
+  // MINISTRY_REGISTRAR / MINISTRY_OFFICER users are scoped to one ministry.
+  ministry   Ministry? @relation(fields: [ministryId], references: [id])
+  ministryId String?
+
+  // VENDOR users are scoped to one Client (the vendor/customer company
+  // submitting shipments for clearance).
+  vendorClient   Client? @relation(fields: [vendorClientId], references: [id])
+  vendorClientId String?
+
+  uploadedDocuments        ClearanceDocument[]
+  uploadedDocumentVersions ClearanceDocumentVersion[]
+  approvalActions          ApprovalAction[]
+  deliveryRecords          DeliveryRecord[]
+  notifications            Notification[]
+
   @@map("users")
 }
 
 model Client {
-  id            String      @id @default(cuid())
+  id            String         @id @default(cuid())
   name          String
   email         String?
   phone         String?
@@ -134,6 +197,9 @@ model Client {
 
   clientNotes ClientNote[]
   followUps   ClientFollowUp[]
+
+  // VENDOR-role users representing this company in the ministry clearance module.
+  vendorUsers User[]
 
   @@map("clients")
 }
@@ -219,6 +285,12 @@ model Shipment {
   expenses         Expense[]
   quotes           Quote[]
   purchaseRequests PurchaseRequest[]
+
+  // Ministry document approval & delivery clearance
+  clearanceStatus    ClearanceStatus     @default(NOT_STARTED)
+  clearanceDocuments ClearanceDocument[]
+  approvalSteps      ApprovalStep[]
+  deliveryRecord     DeliveryRecord?
 
   @@map("shipments")
 }
@@ -384,4 +456,157 @@ model QuoteItem {
   purchaseRequestId String?          @unique
 
   @@map("quote_items")
+}
+
+// ---------------------------------------------------------------------------
+// Vendor -> Ministry Document Approval & Delivery Clearance
+// ---------------------------------------------------------------------------
+
+model Ministry {
+  id                    String   @id @default(cuid())
+  name                  String
+  code                  String   @unique
+  description           String?
+  active                Boolean  @default(true)
+  defaultPosition       Int?
+  requiredDocumentTypes String[]
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  users         User[]
+  chainSteps    MinistryChainStep[]
+  approvalSteps ApprovalStep[]
+
+  @@map("ministries")
+}
+
+// The authoritative, configurable ordering of ministries per shipment type.
+// Ministry.defaultPosition is only a suggested starting point when building
+// a new chain in the admin UI.
+model MinistryChainStep {
+  id           String       @id @default(cuid())
+  shipmentType ShipmentType
+  position     Int
+
+  ministry   Ministry @relation(fields: [ministryId], references: [id])
+  ministryId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([shipmentType, ministryId])
+  @@unique([shipmentType, position])
+  @@map("ministry_chain_steps")
+}
+
+model ClearanceDocument {
+  id           String   @id @default(cuid())
+  documentType String
+  createdAt    DateTime @default(now())
+
+  shipment   Shipment @relation(fields: [shipmentId], references: [id])
+  shipmentId String
+
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+  uploadedById String
+
+  versions ClearanceDocumentVersion[]
+
+  @@map("clearance_documents")
+}
+
+// Corrections create new versions; existing versions are never overwritten
+// or deleted, preserving what each ministry actually reviewed.
+model ClearanceDocumentVersion {
+  id        String   @id @default(cuid())
+  version   Int
+  fileUrl   String
+  fileName  String
+  createdAt DateTime @default(now())
+
+  document   ClearanceDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentId String
+
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+  uploadedById String
+
+  approvalActions ApprovalAction[]
+
+  @@unique([documentId, version])
+  @@map("clearance_document_versions")
+}
+
+// One row per (shipment, ministry). Only one step per shipment is ever
+// PENDING/IN_REVIEW at a time -- the chain is strictly sequential.
+model ApprovalStep {
+  id        String             @id @default(cuid())
+  position  Int
+  status    ApprovalStepStatus @default(PENDING)
+  startedAt DateTime?
+  decidedAt DateTime?
+  createdAt DateTime           @default(now())
+
+  shipment   Shipment @relation(fields: [shipmentId], references: [id])
+  shipmentId String
+
+  ministry   Ministry @relation(fields: [ministryId], references: [id])
+  ministryId String
+
+  actions ApprovalAction[]
+
+  @@unique([shipmentId, ministryId])
+  @@map("approval_steps")
+}
+
+// Append-only audit log. No update/delete action is exposed anywhere in the
+// app for this model -- it is the permanent record of who did what, when.
+model ApprovalAction {
+  id        String             @id @default(cuid())
+  action    ApprovalActionType
+  note      String
+  createdAt DateTime           @default(now())
+
+  step   ApprovalStep @relation(fields: [stepId], references: [id])
+  stepId String
+
+  actor   User   @relation(fields: [actorId], references: [id])
+  actorId String
+
+  documentVersion   ClearanceDocumentVersion? @relation(fields: [documentVersionId], references: [id])
+  documentVersionId String?
+
+  @@map("approval_actions")
+}
+
+// Terminal state for this module. `status` and the shipment relation are
+// the integration seam for a future delivery/shipping module.
+model DeliveryRecord {
+  id                String               @id @default(cuid())
+  deliveryMode      DeliveryMode
+  destinationDetail String
+  status            DeliveryRecordStatus @default(PENDING)
+  createdAt         DateTime             @default(now())
+
+  shipment   Shipment @relation(fields: [shipmentId], references: [id])
+  shipmentId String   @unique
+
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById String
+
+  @@map("delivery_records")
+}
+
+// Lightweight in-app notification (this platform has no email/queue
+// infrastructure yet -- see conversation note on Celery substitution).
+model Notification {
+  id         String           @id @default(cuid())
+  type       NotificationType
+  message    String
+  shipmentId String?
+  read       Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  @@map("notifications")
 }

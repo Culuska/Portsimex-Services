@@ -33,6 +33,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             name: user.name,
             email: user.email,
             role: user.role,
+            ministryId: user.ministryId,
+            vendorClientId: user.vendorClientId,
           };
         } catch (error) {
           console.error("[AUTHORIZE_DEBUG]", error);
