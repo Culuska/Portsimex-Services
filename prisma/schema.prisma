@@ -23,6 +23,15 @@ enum ShipmentType {
   DOMESTIC
 }
 
+// Physical mode of transport, independent of ShipmentType (an IMPORT can
+// travel by sea or air; a DOMESTIC move is by road) -- determines which
+// of the mode-specific fields below apply.
+enum TransportMode {
+  SEA
+  AIR
+  ROAD
+}
+
 enum ShipmentStatus {
   PENDING
   IN_TRANSIT
@@ -296,15 +305,26 @@ model Shipment {
   reference        String         @unique
   type             ShipmentType
   status           ShipmentStatus @default(PENDING)
+  transportMode    TransportMode  @default(SEA)
   origin           String
   destination      String
   cargoDescription String?
-  containerNumber  String?
-  vessel           String?
   etd              DateTime?
   eta              DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
+
+  // SEA
+  vessel          String?
+  containerNumber String?
+  billOfLading    String?
+
+  // AIR
+  airwayBill    String?
+  flightCarrier String?
+
+  // ROAD (domestic)
+  vehicleType String?
 
   client   Client @relation(fields: [clientId], references: [id])
   clientId String

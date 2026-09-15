@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 type ActionState = { error: string | null };
 type ShipmentFormAction = (
@@ -9,6 +9,11 @@ type ShipmentFormAction = (
 ) => Promise<ActionState>;
 
 const TYPES = ["IMPORT", "EXPORT", "TRANSSHIPMENT", "DOMESTIC"] as const;
+const TRANSPORT_MODES = [
+  { value: "SEA", label: "Sea" },
+  { value: "AIR", label: "Air" },
+  { value: "ROAD", label: "Road (domestic)" },
+] as const;
 const STATUSES = [
   "PENDING",
   "IN_TRANSIT",
@@ -39,12 +44,17 @@ export default function ShipmentForm({
     clientId: string;
     assigneeId: string | null;
     type: string;
+    transportMode: string;
     status: string;
     origin: string;
     destination: string;
     cargoDescription: string | null;
     containerNumber: string | null;
     vessel: string | null;
+    billOfLading: string | null;
+    airwayBill: string | null;
+    flightCarrier: string | null;
+    vehicleType: string | null;
     etd: Date | null;
     eta: Date | null;
   };
@@ -52,6 +62,7 @@ export default function ShipmentForm({
   showStatus?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null });
+  const [transportMode, setTransportMode] = useState(defaultValues?.transportMode ?? "SEA");
 
   return (
     <form action={formAction} className="flex flex-col gap-4 max-w-2xl">
@@ -95,7 +106,7 @@ export default function ShipmentForm({
         </div>
       </div>
 
-      <div className={`grid gap-4 ${showStatus ? "grid-cols-2" : "grid-cols-1"}`}>
+      <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="type" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             Type
@@ -113,26 +124,45 @@ export default function ShipmentForm({
             ))}
           </select>
         </div>
-        {showStatus && (
-          <div className="flex flex-col gap-1">
-            <label htmlFor="status" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Status
-            </label>
-            <select
-              id="status"
-              name="status"
-              defaultValue={defaultValues?.status ?? "PENDING"}
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="flex flex-col gap-1">
+          <label htmlFor="transportMode" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Transport mode
+          </label>
+          <select
+            id="transportMode"
+            name="transportMode"
+            value={transportMode}
+            onChange={(e) => setTransportMode(e.target.value)}
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            {TRANSPORT_MODES.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {showStatus && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor="status" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Status
+          </label>
+          <select
+            id="status"
+            name="status"
+            defaultValue={defaultValues?.status ?? "PENDING"}
+            className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s.replace(/_/g, " ")}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1">
@@ -188,30 +218,116 @@ export default function ShipmentForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="containerNumber" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Container #
-          </label>
-          <input
-            id="containerNumber"
-            name="containerNumber"
-            defaultValue={defaultValues?.containerNumber ?? ""}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
-          />
+      {transportMode === "SEA" && (
+        <div className="rounded-md border border-zinc-200 dark:border-zinc-800 p-4">
+          <p className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+            Sea freight details
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="vessel" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Vessel
+              </label>
+              <input
+                id="vessel"
+                name="vessel"
+                defaultValue={defaultValues?.vessel ?? ""}
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor="containerNumber"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                Container #
+              </label>
+              <input
+                id="containerNumber"
+                name="containerNumber"
+                defaultValue={defaultValues?.containerNumber ?? ""}
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+            <div className="col-span-2 flex flex-col gap-1">
+              <label
+                htmlFor="billOfLading"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                Bill of lading #
+              </label>
+              <input
+                id="billOfLading"
+                name="billOfLading"
+                defaultValue={defaultValues?.billOfLading ?? ""}
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="vessel" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Vessel
-          </label>
-          <input
-            id="vessel"
-            name="vessel"
-            defaultValue={defaultValues?.vessel ?? ""}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
-          />
+      )}
+
+      {transportMode === "AIR" && (
+        <div className="rounded-md border border-zinc-200 dark:border-zinc-800 p-4">
+          <p className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+            Air freight details
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor="airwayBill"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                Airway bill #
+              </label>
+              <input
+                id="airwayBill"
+                name="airwayBill"
+                defaultValue={defaultValues?.airwayBill ?? ""}
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor="flightCarrier"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                Flight / carrier
+              </label>
+              <input
+                id="flightCarrier"
+                name="flightCarrier"
+                placeholder="e.g. Ethiopian Airlines ET-702"
+                defaultValue={defaultValues?.flightCarrier ?? ""}
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {transportMode === "ROAD" && (
+        <div className="rounded-md border border-zinc-200 dark:border-zinc-800 p-4">
+          <p className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+            Road transport details
+          </p>
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="vehicleType"
+              className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+            >
+              Vehicle / transport type
+            </label>
+            <input
+              id="vehicleType"
+              name="vehicleType"
+              placeholder="e.g. 10-ton truck, flatbed trailer"
+              defaultValue={defaultValues?.vehicleType ?? ""}
+              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-1">
         <label htmlFor="cargoDescription" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
