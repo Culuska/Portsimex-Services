@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser, requireMinistryOfficer, requireLogisticsStaff } from "@/lib/session";
 import { canViewVendorShipment } from "@/lib/permissions";
+import { isFullAccessRole } from "@/lib/roles";
 import { uploadClearanceFile } from "@/lib/blob";
 import { notify } from "@/lib/notify";
 import {
@@ -243,7 +244,7 @@ export async function takeApprovalActionAction(
   try {
     assertCanAct(step, {
       ministryId: officer.ministryId,
-      isAdmin: officer.role === "ADMIN",
+      isAdmin: isFullAccessRole(officer.role),
     });
   } catch (e) {
     if (e instanceof InvalidTransitionError) return { error: e.message };

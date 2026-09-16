@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Role } from "@/lib/roles";
+import { isFullAccessRole } from "@/lib/roles";
 
 const opsLinks = [
   { href: "/", label: "Dashboard" },
@@ -41,12 +42,11 @@ export default function Nav({
 }) {
   const pathname = usePathname();
 
-  const items =
-    role === "ADMIN"
-      ? [...opsLinks, ...adminExtraLinks]
-      : role === "STAFF"
-        ? opsLinks
-        : (roleLinks[role] ?? []);
+  const items = isFullAccessRole(role)
+    ? [...opsLinks, ...adminExtraLinks]
+    : role === "STAFF"
+      ? opsLinks
+      : (roleLinks[role] ?? []);
 
   return (
     <nav className="flex flex-col gap-1">

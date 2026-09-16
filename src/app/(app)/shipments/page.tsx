@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/auth";
+import { isFullAccessRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
@@ -29,7 +30,7 @@ export default async function ShipmentsPage() {
     }),
   ]);
 
-  const isAdmin = session?.user.role === "ADMIN";
+  const isAdmin = !!session && isFullAccessRole(session.user.role);
 
   return (
     <div>

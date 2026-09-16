@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { isFullAccessRole } from "@/lib/roles";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import SimpleActionButton from "@/components/SimpleActionButton";
@@ -20,7 +21,7 @@ export default async function UserDetailPage({
 }) {
   const { id } = await params;
   const session = await auth();
-  if (session?.user.role !== "ADMIN") {
+  if (!session || !isFullAccessRole(session.user.role)) {
     redirect("/");
   }
 

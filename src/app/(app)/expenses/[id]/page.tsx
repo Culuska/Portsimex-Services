@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { isFullAccessRole } from "@/lib/roles";
 import { PageHeader, Card, Badge } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import ExpenseForm from "../ExpenseForm";
@@ -34,7 +35,7 @@ export default async function ExpenseDetailPage({
 
   if (!expense) notFound();
 
-  const isAdmin = session?.user.role === "ADMIN";
+  const isAdmin = !!session && isFullAccessRole(session.user.role);
   const boundUpdate = updateExpenseAction.bind(null, expense.id);
   const boundApprove = approveExpenseAction.bind(null, expense.id);
   const boundReject = rejectExpenseAction.bind(null, expense.id);

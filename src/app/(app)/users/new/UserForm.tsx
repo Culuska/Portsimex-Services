@@ -7,6 +7,7 @@ type UserFormAction = (state: ActionState, formData: FormData) => Promise<Action
 
 const ROLE_LABELS: Record<string, string> = {
   STAFF: "Staff",
+  SUPERVISOR: "Supervisor",
   ADMIN: "Admin (SuperAdmin)",
   MINISTRY_REGISTRAR: "Ministry Registrar",
   MINISTRY_OFFICER: "Ministry Officer",
@@ -17,6 +18,8 @@ const ROLE_LABELS: Record<string, string> = {
 const ROLE_PERMISSIONS: Record<string, string> = {
   STAFF:
     "Full access to daily operations: shipments, quotes, invoices, expenses, clients, vendors, purchase requests. Cannot manage Users or Accounting.",
+  SUPERVISOR:
+    "Full access to everything in the app, with no restrictions -- identical to Admin, including Users, Accounting/Ledger, and every approval step (expense approval, starting a shipment from an accepted quote, ministry registry).",
   ADMIN:
     "Full access to everything in the app, with no restrictions -- including Users, Accounting/Ledger, and every approval step (expense approval, starting a shipment from an accepted quote, ministry registry).",
   MINISTRY_REGISTRAR:

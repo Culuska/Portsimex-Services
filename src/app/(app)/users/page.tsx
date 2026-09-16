@@ -2,12 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { isFullAccessRole } from "@/lib/roles";
 import { formatDate } from "@/lib/format";
 import { Badge, ButtonLink, Card, PageHeader } from "@/components/ui";
 
 export default async function UsersPage() {
   const session = await auth();
-  if (session?.user.role !== "ADMIN") {
+  if (!session || !isFullAccessRole(session.user.role)) {
     redirect("/");
   }
 

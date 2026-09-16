@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { isFullAccessRole } from "@/lib/roles";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { SERVICE_TYPE_LABELS } from "@/lib/services";
@@ -32,7 +33,7 @@ export default async function PurchaseRequestDetailPage({
 
   if (!pr) notFound();
 
-  const isAdmin = session?.user.role === "ADMIN";
+  const isAdmin = !!session && isFullAccessRole(session.user.role);
   const boundApprove = approvePurchaseRequestAction.bind(null, pr.id);
   const boundReject = rejectPurchaseRequestAction.bind(null, pr.id);
 

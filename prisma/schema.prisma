@@ -9,6 +9,10 @@ datasource db {
 
 enum Role {
   ADMIN
+  // Second full-access "super" role, identical to ADMIN everywhere in the
+  // app (see isFullAccessRole in lib/roles.ts) -- exists purely as a
+  // separate label for organizations that use both titles.
+  SUPERVISOR
   STAFF
   MINISTRY_REGISTRAR
   MINISTRY_OFFICER

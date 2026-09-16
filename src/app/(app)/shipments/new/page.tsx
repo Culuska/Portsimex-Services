@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/auth";
+import { isFullAccessRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { EmptyState, PageHeader } from "@/components/ui";
 import ShipmentForm from "../ShipmentForm";
@@ -41,7 +42,7 @@ export default async function NewShipmentPage({
 
   // Client acceptance alone isn't enough to commit to the job -- only an
   // admin can actually start the shipment (see createShipmentAction).
-  if (session?.user.role !== "ADMIN") {
+  if (!session || !isFullAccessRole(session.user.role)) {
     return (
       <div>
         <PageHeader title="New shipment" />

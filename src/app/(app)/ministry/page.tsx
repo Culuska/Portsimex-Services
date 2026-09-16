@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { canActAsMinistryOfficer } from "@/lib/permissions";
+import { isFullAccessRole } from "@/lib/roles";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 
@@ -31,7 +32,7 @@ export default async function MinistryQueuePage() {
       <PageHeader
         title="Ministry queue"
         description={
-          session.user.role === "ADMIN"
+          isFullAccessRole(session.user.role)
             ? "All shipments currently awaiting review at any ministry"
             : "Shipments awaiting your review"
         }
@@ -45,7 +46,7 @@ export default async function MinistryQueuePage() {
               <tr>
                 <th className="px-4 py-3 font-medium">Shipment</th>
                 <th className="px-4 py-3 font-medium">Client</th>
-                {session.user.role === "ADMIN" && (
+                {isFullAccessRole(session.user.role) && (
                   <th className="px-4 py-3 font-medium">Ministry</th>
                 )}
                 <th className="px-4 py-3 font-medium">Waiting since</th>
@@ -63,7 +64,7 @@ export default async function MinistryQueuePage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-zinc-500">{step.shipment.client.name}</td>
-                  {session.user.role === "ADMIN" && (
+                  {isFullAccessRole(session.user.role) && (
                     <td className="px-4 py-3 text-zinc-500">{step.ministry.name}</td>
                   )}
                   <td className="px-4 py-3 text-zinc-500">{formatDate(step.startedAt)}</td>

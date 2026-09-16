@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { isFullAccessRole } from "@/lib/roles";
 import { PageHeader } from "@/components/ui";
 import UserForm from "./UserForm";
 import { createUserAction } from "../actions";
 
 export default async function NewUserPage() {
   const session = await auth();
-  if (session?.user.role !== "ADMIN") {
+  if (!session || !isFullAccessRole(session.user.role)) {
     redirect("/");
   }
 

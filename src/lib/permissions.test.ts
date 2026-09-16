@@ -11,6 +11,7 @@ import {
 
 const ALL_ROLES: Role[] = [
   "ADMIN",
+  "SUPERVISOR",
   "STAFF",
   "MINISTRY_REGISTRAR",
   "MINISTRY_OFFICER",
@@ -23,25 +24,27 @@ function rolesAllowed(check: (role: Role) => boolean): Role[] {
 }
 
 describe("role -> screen authorization boundaries", () => {
-  it("only ADMIN and MINISTRY_REGISTRAR can manage the ministry registry", () => {
+  it("only ADMIN/SUPERVISOR and MINISTRY_REGISTRAR can manage the ministry registry", () => {
     expect(rolesAllowed(canManageMinistries).sort()).toEqual(
-      ["ADMIN", "MINISTRY_REGISTRAR"].sort(),
+      ["ADMIN", "SUPERVISOR", "MINISTRY_REGISTRAR"].sort(),
     );
   });
 
-  it("only ADMIN and MINISTRY_OFFICER can act as a ministry officer", () => {
+  it("only ADMIN/SUPERVISOR and MINISTRY_OFFICER can act as a ministry officer", () => {
     expect(rolesAllowed(canActAsMinistryOfficer).sort()).toEqual(
-      ["ADMIN", "MINISTRY_OFFICER"].sort(),
+      ["ADMIN", "SUPERVISOR", "MINISTRY_OFFICER"].sort(),
     );
   });
 
-  it("only ADMIN and VENDOR can access the vendor portal", () => {
-    expect(rolesAllowed(canAccessVendorPortal).sort()).toEqual(["ADMIN", "VENDOR"].sort());
+  it("only ADMIN/SUPERVISOR and VENDOR can access the vendor portal", () => {
+    expect(rolesAllowed(canAccessVendorPortal).sort()).toEqual(
+      ["ADMIN", "SUPERVISOR", "VENDOR"].sort(),
+    );
   });
 
-  it("only ADMIN and LOGISTICS_STAFF can create a delivery record", () => {
+  it("only ADMIN/SUPERVISOR and LOGISTICS_STAFF can create a delivery record", () => {
     expect(rolesAllowed(canCreateDeliveryRecord).sort()).toEqual(
-      ["ADMIN", "LOGISTICS_STAFF"].sort(),
+      ["ADMIN", "SUPERVISOR", "LOGISTICS_STAFF"].sort(),
     );
   });
 
@@ -72,6 +75,12 @@ describe("canViewVendorShipment", () => {
     );
   });
 
+  it("supervisor can view any vendor's shipment", () => {
+    expect(canViewVendorShipment({ role: "SUPERVISOR", vendorClientId: null }, "c2")).toBe(
+      true,
+    );
+  });
+
   it("non-vendor, non-admin roles cannot view vendor shipments this way", () => {
     expect(
       canViewVendorShipment({ role: "MINISTRY_OFFICER", vendorClientId: null }, "c1"),
@@ -94,6 +103,10 @@ describe("canActOnMinistryStep", () => {
 
   it("admin can act on any ministry's step", () => {
     expect(canActOnMinistryStep({ role: "ADMIN", ministryId: null }, "m2")).toBe(true);
+  });
+
+  it("supervisor can act on any ministry's step", () => {
+    expect(canActOnMinistryStep({ role: "SUPERVISOR", ministryId: null }, "m2")).toBe(true);
   });
 
   it("a vendor can never act on a ministry step", () => {
