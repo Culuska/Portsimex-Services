@@ -42,8 +42,11 @@ export async function createUserAction(
     email: formData.get("email"),
     password: formData.get("password"),
     role: formData.get("role"),
-    ministryId: formData.get("ministryId"),
-    vendorClientId: formData.get("vendorClientId"),
+    // These two fields only exist in the DOM for Ministry/Vendor roles --
+    // for every other role formData.get() returns null (not ""), which
+    // z.string().optional() rejects (it only accepts undefined).
+    ministryId: formData.get("ministryId") || "",
+    vendorClientId: formData.get("vendorClientId") || "",
   });
 
   if (!parsed.success) {
@@ -92,10 +95,10 @@ export async function updateUserAction(
   const parsed = updateUserSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
-    password: formData.get("password"),
+    password: formData.get("password") || "",
     role: formData.get("role"),
-    ministryId: formData.get("ministryId"),
-    vendorClientId: formData.get("vendorClientId"),
+    ministryId: formData.get("ministryId") || "",
+    vendorClientId: formData.get("vendorClientId") || "",
   });
 
   if (!parsed.success) {
