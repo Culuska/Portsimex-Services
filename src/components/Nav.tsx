@@ -19,16 +19,16 @@ const opsLinks = [
 const adminExtraLinks = [
   { href: "/accounting", label: "Accounting" },
   { href: "/users", label: "Users" },
-  { href: "/ministries", label: "Ministries" },
-  { href: "/ministry", label: "Ministry Queue" },
+  { href: "/ministries", label: "Tax Exemption Registry" },
+  { href: "/ministry", label: "Tax Exemption Queue" },
   { href: "/deliveries", label: "Deliveries" },
 ];
 
 // Roles scoped to the ministry-clearance module get a focused menu instead
 // of the full internal ops app (which shows every client's data).
 const roleLinks: Partial<Record<Role, { href: string; label: string }[]>> = {
-  MINISTRY_REGISTRAR: [{ href: "/ministries", label: "Ministries" }],
-  MINISTRY_OFFICER: [{ href: "/ministry", label: "Ministry Queue" }],
+  MINISTRY_REGISTRAR: [{ href: "/ministries", label: "Tax Exemption Registry" }],
+  MINISTRY_OFFICER: [{ href: "/ministry", label: "Tax Exemption Queue" }],
   VENDOR: [{ href: "/my-shipments", label: "My Shipments" }],
   LOGISTICS_STAFF: [{ href: "/deliveries", label: "Deliveries" }],
 };

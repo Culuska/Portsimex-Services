@@ -16,7 +16,7 @@ export default async function MinistriesPage() {
   return (
     <div>
       <PageHeader
-        title="Ministries"
+        title="Tax Exemption Registry"
         description="Register ministries and configure their approval chain position"
         action={
           <div className="flex gap-3">

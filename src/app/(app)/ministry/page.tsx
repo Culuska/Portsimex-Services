@@ -30,7 +30,7 @@ export default async function MinistryQueuePage() {
   return (
     <div>
       <PageHeader
-        title="Ministry queue"
+        title="Tax Exemption Queue"
         description={
           isFullAccessRole(session.user.role)
             ? "All shipments currently awaiting review at any ministry"
