@@ -28,7 +28,10 @@ const updateExpenseSchema = z.object({
   description: z.string().min(1, "Description is required"),
   vendorId: z.string().optional().or(z.literal("")),
   shipmentId: z.string().optional().or(z.literal("")),
-  status: z.enum(expenseStatuses),
+  // Not rendered at all once the expense has left PENDING (ExpenseForm's
+  // lockStatus) -- formData.get() then returns null, which z.enum()
+  // rejects outright, so this has to be optional rather than required.
+  status: z.enum(expenseStatuses).optional(),
   incurredAt: z.string().min(1, "Date is required"),
 });
 
@@ -100,7 +103,7 @@ export async function updateExpenseAction(
     description: formData.get("description"),
     vendorId: formData.get("vendorId"),
     shipmentId: formData.get("shipmentId"),
-    status: formData.get("status"),
+    status: formData.get("status") || undefined,
     incurredAt: formData.get("incurredAt"),
   });
   if (!parsed.success) {
@@ -112,8 +115,10 @@ export async function updateExpenseAction(
   // Once an expense has left PENDING (queued for approval or already
   // paid), status only changes through the dedicated approve/reject/pay
   // actions below -- this form can't be used to skip the approval queue.
+  // (parsed.data.status is only ever present when the status select was
+  // actually rendered, i.e. existing.status === "PENDING".)
   const nextStatus =
-    existing.status === "PENDING"
+    existing.status === "PENDING" && parsed.data.status
       ? decideExpenseStatus(Number(existing.amount), parsed.data.status)
       : existing.status;
 

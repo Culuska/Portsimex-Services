@@ -41,20 +41,25 @@ const shipmentSchema = z.object({
 function readShipmentForm(formData: FormData) {
   return {
     clientId: formData.get("clientId"),
-    assigneeId: formData.get("assigneeId"),
+    // Only one of the SEA/AIR/ROAD field groups is ever rendered at a
+    // time (see ShipmentForm's transportMode branch), so formData.get()
+    // returns null -- not "" -- for whichever group isn't shown, and
+    // z.string().optional() rejects null (it only accepts undefined).
+    // Coerce every conditionally-rendered field to "" before parsing.
+    assigneeId: formData.get("assigneeId") || "",
     type: formData.get("type"),
     transportMode: formData.get("transportMode"),
     origin: formData.get("origin"),
     destination: formData.get("destination"),
-    cargoDescription: formData.get("cargoDescription"),
-    etd: formData.get("etd"),
-    eta: formData.get("eta"),
-    containerNumber: formData.get("containerNumber"),
-    vessel: formData.get("vessel"),
-    billOfLading: formData.get("billOfLading"),
-    airwayBill: formData.get("airwayBill"),
-    flightCarrier: formData.get("flightCarrier"),
-    vehicleType: formData.get("vehicleType"),
+    cargoDescription: formData.get("cargoDescription") || "",
+    etd: formData.get("etd") || "",
+    eta: formData.get("eta") || "",
+    containerNumber: formData.get("containerNumber") || "",
+    vessel: formData.get("vessel") || "",
+    billOfLading: formData.get("billOfLading") || "",
+    airwayBill: formData.get("airwayBill") || "",
+    flightCarrier: formData.get("flightCarrier") || "",
+    vehicleType: formData.get("vehicleType") || "",
   };
 }
 
