@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
 import UserForm from "./UserForm";
+import { createUserAction } from "../actions";
 
 export default async function NewUserPage() {
   const session = await auth();
@@ -18,7 +19,12 @@ export default async function NewUserPage() {
   return (
     <div>
       <PageHeader title="New user" description="Invite a teammate to Portsimex" />
-      <UserForm ministries={ministries} clients={clients} />
+      <UserForm
+        action={createUserAction}
+        ministries={ministries}
+        clients={clients}
+        submitLabel="Create user"
+      />
     </div>
   );
 }

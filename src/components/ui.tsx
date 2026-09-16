@@ -96,6 +96,7 @@ const badgeColors: Record<string, string> = {
   EXPIRED: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
   PROSPECT: "bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-300",
   ACTIVE: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  INACTIVE: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
   DORMANT: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   LOST: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
   NOT_STARTED: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",

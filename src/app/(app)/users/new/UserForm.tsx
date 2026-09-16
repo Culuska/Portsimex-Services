@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { createUserAction } from "../actions";
+
+type ActionState = { error: string | null };
+type UserFormAction = (state: ActionState, formData: FormData) => Promise<ActionState>;
 
 const ROLE_LABELS: Record<string, string> = {
   STAFF: "Staff",
@@ -13,16 +15,29 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function UserForm({
+  action,
   ministries,
   clients,
+  defaultValues,
+  submitLabel,
 }: {
+  action: UserFormAction;
   ministries: { id: string; name: string }[];
   clients: { id: string; name: string }[];
+  defaultValues?: {
+    name: string;
+    email: string;
+    role: string;
+    ministryId: string | null;
+    vendorClientId: string | null;
+  };
+  submitLabel: string;
 }) {
-  const [state, formAction, pending] = useActionState(createUserAction, {
+  const [state, formAction, pending] = useActionState(action, {
     error: null,
   });
-  const [role, setRole] = useState("STAFF");
+  const [role, setRole] = useState(defaultValues?.role ?? "STAFF");
+  const isEdit = Boolean(defaultValues);
 
   return (
     <form action={formAction} className="flex flex-col gap-4 max-w-md">
@@ -34,6 +49,7 @@ export default function UserForm({
           id="name"
           name="name"
           required
+          defaultValue={defaultValues?.name}
           className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
@@ -46,18 +62,19 @@ export default function UserForm({
           name="email"
           type="email"
           required
+          defaultValue={defaultValues?.email}
           className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="password" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Temporary password
+          {isEdit ? "New password (leave blank to keep current)" : "Temporary password"}
         </label>
         <input
           id="password"
           name="password"
           type="password"
-          required
+          required={!isEdit}
           minLength={8}
           className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         />
@@ -90,6 +107,7 @@ export default function UserForm({
             id="ministryId"
             name="ministryId"
             required
+            defaultValue={defaultValues?.ministryId ?? ""}
             className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="">Select a ministry</option>
@@ -111,6 +129,7 @@ export default function UserForm({
             id="vendorClientId"
             name="vendorClientId"
             required
+            defaultValue={defaultValues?.vendorClientId ?? ""}
             className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="">Select a client</option>
@@ -134,7 +153,7 @@ export default function UserForm({
         disabled={pending}
         className="mt-2 w-fit rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
       >
-        {pending ? "Creating..." : "Create user"}
+        {pending ? "Saving..." : submitLabel}
       </button>
     </form>
   );

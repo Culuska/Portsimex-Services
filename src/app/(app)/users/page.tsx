@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { formatDate } from "@/lib/format";
-import { ButtonLink, Card, PageHeader } from "@/components/ui";
+import { Badge, ButtonLink, Card, PageHeader } from "@/components/ui";
 
 export default async function UsersPage() {
   const session = await auth();
@@ -31,18 +32,29 @@ export default async function UsersPage() {
               <th className="px-4 py-3 font-medium">Role</th>
               <th className="px-4 py-3 font-medium">Scope</th>
               <th className="px-4 py-3 font-medium">Joined</th>
+              <th className="px-4 py-3 font-medium">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {users.map((u) => (
               <tr key={u.id}>
-                <td className="px-4 py-3 text-zinc-900 dark:text-zinc-50">{u.name}</td>
+                <td className="px-4 py-3">
+                  <Link
+                    href={`/users/${u.id}`}
+                    className="font-medium text-zinc-900 hover:underline dark:text-zinc-50"
+                  >
+                    {u.name}
+                  </Link>
+                </td>
                 <td className="px-4 py-3 text-zinc-500">{u.email}</td>
                 <td className="px-4 py-3 text-zinc-500">{u.role.replace(/_/g, " ")}</td>
                 <td className="px-4 py-3 text-zinc-500">
                   {u.ministry?.name ?? u.vendorClient?.name ?? "—"}
                 </td>
                 <td className="px-4 py-3 text-zinc-500">{formatDate(u.createdAt)}</td>
+                <td className="px-4 py-3">
+                  <Badge status={u.active ? "ACTIVE" : "INACTIVE"} />
+                </td>
               </tr>
             ))}
           </tbody>

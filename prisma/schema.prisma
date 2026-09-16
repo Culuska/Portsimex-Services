@@ -183,6 +183,11 @@ model User {
   email        String   @unique
   passwordHash String
   role         Role     @default(STAFF)
+  // Deactivating (rather than deleting) revokes login while preserving
+  // every record they've authored/approved -- a hard delete is only
+  // possible when the account has no linked activity at all (see
+  // deleteUserAction), since most of those relations restrict deletion.
+  active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
