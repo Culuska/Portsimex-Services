@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+/* Brand palette — taken from the Portsimex Services logo and business cards. */
+:root {
+  --ink: #06163a;
+  --ink-raised: #0b2253;
+  --ink-line: #1e3566;
+  --paper: #fbf8f1;
+  --paper-dim: #a9b4cf;
+  --stone: #f1ece2;
+  --stone-line: #e2dacb;
+  --navy: #0b3d91;
+  --text: #1b2230;
+  --text-dim: #5b6475;
+  --accent: #b11217;
+  --accent-strong: #8e0e12;
+  --accent-light: #e8a5a8;
+  --logo-maroon: #700306;
+  --gold: #d9b865;
+  --gold-light: #ebd18c;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-raised: var(--ink-raised);
+  --color-ink-line: var(--ink-line);
+  --color-paper: var(--paper);
+  --color-paper-dim: var(--paper-dim);
+  --color-stone: var(--stone);
+  --color-stone-line: var(--stone-line);
+  --color-navy: var(--navy);
+  --color-text: var(--text);
+  --color-text-dim: var(--text-dim);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-light: var(--accent-light);
+  --color-logo-maroon: var(--logo-maroon);
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-light);
+  --font-display: var(--font-archivo);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+  --font-wordmark: var(--font-tinos);
+}
+
+/* Base rules live in the base layer so Tailwind utilities (e.g. link colours) can override them. */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--text);
+    font-family: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--paper);
+  }
+
+  a {
+    color: inherit;
+  }
+
+  .font-display {
+    font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .font-mono {
+    font-family: var(--font-plex-mono), ui-monospace, monospace;
+  }
+
+  .font-wordmark {
+    font-family: var(--font-tinos), "Times New Roman", serif;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
