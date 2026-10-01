@@ -12,8 +12,6 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // marketing/ is a separate Next.js app with its own eslint config.
-    "marketing/**",
   ]),
 ]);
 
