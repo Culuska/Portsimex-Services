@@ -27,6 +27,13 @@ export async function requireRole(...roles: Role[]) {
   return user;
 }
 
+// Internal operations staff (the service/job/finance side of the app).
+// ADMIN/SUPERVISOR pass via requireRole; scoped portal roles (vendor,
+// ministry, logistics) never do.
+export async function requireStaff() {
+  return requireRole("STAFF");
+}
+
 export async function requireMinistryRegistrar() {
   return requireRole("MINISTRY_REGISTRAR");
 }

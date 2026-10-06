@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { attributableJobs } from "@/lib/jobs";
 import { PageHeader } from "@/components/ui";
 import InvoiceForm from "../InvoiceForm";
 
@@ -8,7 +9,7 @@ export default async function NewInvoicePage({
   searchParams: Promise<{ shipmentId?: string }>;
 }) {
   const { shipmentId } = await searchParams;
-  const [clients, shipments, inProcessQuotes] = await Promise.all([
+  const [clients, shipments, inProcessQuotes, jobs] = await Promise.all([
     prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.shipment.findMany({
       orderBy: { createdAt: "desc" },
@@ -22,6 +23,7 @@ export default async function NewInvoicePage({
       include: { items: true },
       orderBy: { issueDate: "desc" },
     }),
+    attributableJobs(prisma),
   ]);
 
   return (
@@ -34,6 +36,7 @@ export default async function NewInvoicePage({
         clients={clients}
         shipments={shipments}
         defaultShipmentId={shipmentId}
+        jobs={jobs.map((j) => ({ ...j, label: j.label.split(" -- ").filter((_, i) => i !== 1).join(" -- ") }))}
         inProcessQuotes={inProcessQuotes.map((q) => ({
           id: q.id,
           quoteNumber: q.quoteNumber,

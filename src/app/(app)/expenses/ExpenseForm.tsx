@@ -1,6 +1,28 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+
+// Suggested categories (free text is still allowed).
+const SUGGESTED_CATEGORIES = [
+  "Transport",
+  "Fuel",
+  "Customs",
+  "Port",
+  "Government fees",
+  "Ministry processing",
+  "Immigration fees",
+  "Vehicle rental cost",
+  "Vehicle maintenance",
+  "Driver allowance",
+  "Accommodation",
+  "Communication",
+  "SIM / telecom cost",
+  "Supplier charges",
+  "Courier",
+  "Office expenses",
+  "Bank charges",
+  "Other",
+];
 
 type ActionState = { error: string | null };
 type ExpenseFormAction = (
@@ -13,15 +35,19 @@ export default function ExpenseForm({
   vendors,
   shipments,
   categories,
+  jobs = [],
   defaultValues,
   submitLabel,
   lockAmount = false,
   lockStatus = false,
+  lockBilling = false,
 }: {
   action: ExpenseFormAction;
   vendors: { id: string; name: string }[];
   shipments: { id: string; reference: string }[];
   categories: { id: string; name: string }[];
+  // Open jobs to attribute the cost to.
+  jobs?: { id: string; label: string }[];
   defaultValues?: {
     description: string;
     amount: string;
@@ -30,6 +56,9 @@ export default function ExpenseForm({
     shipmentId: string | null;
     status: string;
     incurredAt: Date | string;
+    jobId?: string | null;
+    billingType?: string | null;
+    markupAmount?: string;
   };
   submitLabel: string;
   // True once the expense has already been accrued to the ledger --
@@ -38,8 +67,11 @@ export default function ExpenseForm({
   // from here on instead of the dropdown below.
   lockAmount?: boolean;
   lockStatus?: boolean;
+  // True once the cost is on an invoice -- job and markup can no longer change.
+  lockBilling?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null });
+  const [billingType, setBillingType] = useState(defaultValues?.billingType ?? "");
 
   const incurredAtValue = defaultValues
     ? new Date(defaultValues.incurredAt).toISOString().slice(0, 10)
@@ -119,8 +151,8 @@ export default function ExpenseForm({
           }`}
         />
         <datalist id="category-options">
-          {categories.map((c) => (
-            <option key={c.id} value={c.name} />
+          {Array.from(new Set([...SUGGESTED_CATEGORIES, ...categories.map((c) => c.name)])).map((name) => (
+            <option key={name} value={name} />
           ))}
         </datalist>
       </div>
@@ -163,6 +195,51 @@ export default function ExpenseForm({
           </select>
         </div>
       </div>
+
+      <fieldset className="flex flex-col gap-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+        <legend className="px-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">Job &amp; billing</legend>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="jobId" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Job / case</label>
+          <select id="jobId" name="jobId" defaultValue={defaultValues?.jobId ?? ""} disabled={lockBilling} className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="">Not linked to a job (company overhead)</option>
+            {jobs.map((j) => (
+              <option key={j.id} value={j.id}>{j.label}</option>
+            ))}
+          </select>
+          {lockBilling && <input type="hidden" name="jobId" value={defaultValues?.jobId ?? ""} />}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="billingType" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Who pays for this cost?</label>
+            <select
+              id="billingType"
+              name="billingType"
+              required
+              value={billingType}
+              onChange={(e) => setBillingType(e.target.value)}
+              disabled={lockAmount}
+              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="" disabled>Choose…</option>
+              <option value="NON_BILLABLE">Company cost (not re-charged)</option>
+              <option value="BILLABLE">Re-charge to client at cost</option>
+              <option value="BILLABLE_WITH_MARKUP">Re-charge at cost + handling fee</option>
+            </select>
+            {lockAmount && <input type="hidden" name="billingType" value={billingType} />}
+          </div>
+          {billingType === "BILLABLE_WITH_MARKUP" && (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="markupAmount" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Handling / service fee</label>
+              <input id="markupAmount" name="markupAmount" type="number" min="0" step="0.01" required readOnly={lockBilling} defaultValue={defaultValues?.markupAmount ?? ""} className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-zinc-500">
+          {lockAmount
+            ? "Billing type is locked once the cost is posted to the ledger."
+            : "Re-charged costs are held as an amount the client owes back (not company expense) until invoiced -- e.g. a government fee paid for the client. Company costs reduce the job's profit."}
+        </p>
+      </fieldset>
 
       {lockStatus ? (
         <div className="flex flex-col gap-1">

@@ -4,11 +4,13 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireStaff } from "@/lib/session";
 import { SERVICE_TYPES, RATE_BASED_SERVICE_TYPES, AGREEMENT_TYPES } from "@/lib/services";
 import { deriveMnemonicBase, resolveMnemonicCollision } from "@/lib/client-mnemonic";
 
 const clientStages = ["PROSPECT", "ACTIVE", "DORMANT", "LOST"] as const;
+const clientTypes = ["CORPORATE", "NGO", "INTERNATIONAL_ORGANIZATION", "GOVERNMENT_RELATED", "INDIVIDUAL", "OTHER"] as const;
+const optionalNonNeg = z.union([z.literal(""), z.coerce.number().min(0, "Amounts can't be negative")]);
 
 const clientSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -19,6 +21,14 @@ const clientSchema = z.object({
   stage: z.enum(clientStages).optional(),
   agreementType: z.enum(AGREEMENT_TYPES).optional().or(z.literal("")),
   services: z.array(z.enum(SERVICE_TYPES)),
+  clientType: z.enum(clientTypes),
+  contactPerson: z.string().trim(),
+  department: z.string().trim(),
+  country: z.string().trim(),
+  taxNumber: z.string().trim(),
+  paymentTermsDays: z.union([z.literal(""), z.coerce.number().int().min(0, "Payment terms can't be negative").max(365)]),
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, "Currency must be a 3-letter code, e.g. USD"),
+  creditLimit: optionalNonNeg,
 });
 
 function parseClientForm(formData: FormData) {
@@ -31,6 +41,14 @@ function parseClientForm(formData: FormData) {
     stage: formData.get("stage") || undefined,
     agreementType: formData.get("agreementType") || undefined,
     services: formData.getAll("services"),
+    clientType: formData.get("clientType") ?? "CORPORATE",
+    contactPerson: formData.get("contactPerson") ?? "",
+    department: formData.get("department") ?? "",
+    country: formData.get("country") ?? "",
+    taxNumber: formData.get("taxNumber") ?? "",
+    paymentTermsDays: formData.get("paymentTermsDays") ?? "",
+    currency: formData.get("currency") || "USD",
+    creditLimit: formData.get("creditLimit") ?? "",
   });
   if (!parsed.success) return parsed;
 
@@ -57,7 +75,7 @@ export async function createClientAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireUser();
+  await requireStaff();
   const parsed = parseClientForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -81,6 +99,14 @@ export async function createClientAction(
       notes: parsed.data.notes || null,
       agreementType: parsed.data.agreementType || null,
       services: parsed.data.services,
+      clientType: parsed.data.clientType,
+      contactPerson: parsed.data.contactPerson || null,
+      department: parsed.data.department || null,
+      country: parsed.data.country || null,
+      taxNumber: parsed.data.taxNumber || null,
+      paymentTermsDays: parsed.data.paymentTermsDays === "" ? null : parsed.data.paymentTermsDays,
+      currency: parsed.data.currency,
+      creditLimit: parsed.data.creditLimit === "" ? null : parsed.data.creditLimit,
       serviceRates: { create: parsed.data.serviceRates },
     },
   });
@@ -94,7 +120,7 @@ export async function updateClientAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireUser();
+  await requireStaff();
   const parsed = parseClientForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -111,6 +137,14 @@ export async function updateClientAction(
       stage: parsed.data.stage,
       agreementType: parsed.data.agreementType || null,
       services: parsed.data.services,
+      clientType: parsed.data.clientType,
+      contactPerson: parsed.data.contactPerson || null,
+      department: parsed.data.department || null,
+      country: parsed.data.country || null,
+      taxNumber: parsed.data.taxNumber || null,
+      paymentTermsDays: parsed.data.paymentTermsDays === "" ? null : parsed.data.paymentTermsDays,
+      currency: parsed.data.currency,
+      creditLimit: parsed.data.creditLimit === "" ? null : parsed.data.creditLimit,
       serviceRates: { deleteMany: {}, create: parsed.data.serviceRates },
     },
   });
@@ -129,7 +163,7 @@ export async function addClientNoteAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  const user = await requireUser();
+  const user = await requireStaff();
   const parsed = noteSchema.safeParse({ body: formData.get("body") });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -157,7 +191,7 @@ export async function addFollowUpAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireUser();
+  await requireStaff();
   const parsed = followUpSchema.safeParse({
     dueDate: formData.get("dueDate"),
     note: formData.get("note"),
@@ -183,7 +217,7 @@ export async function toggleFollowUpAction(
   clientId: string,
   formData: FormData,
 ) {
-  await requireUser();
+  await requireStaff();
   const done = formData.get("done") === "true";
   await prisma.clientFollowUp.update({
     where: { id: followUpId },

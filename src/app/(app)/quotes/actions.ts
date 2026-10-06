@@ -4,7 +4,8 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { nextInvoiceNumber } from "@/lib/numbering";
+import { requireStaff } from "@/lib/session";
 import { SERVICE_TYPES } from "@/lib/services";
 
 const quoteStatuses = ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"] as const;
@@ -41,7 +42,7 @@ export async function createQuoteAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireUser();
+  await requireStaff();
 
   const descriptions = formData.getAll("description[]") as string[];
   const quantities = formData.getAll("quantity[]") as string[];
@@ -101,7 +102,7 @@ export async function createQuoteAction(
 const statusSchema = z.object({ status: z.enum(quoteStatuses) });
 
 export async function updateQuoteStatusAction(id: string, formData: FormData) {
-  await requireUser();
+  await requireStaff();
   const parsed = statusSchema.safeParse({ status: formData.get("status") });
   if (!parsed.success) return;
 
@@ -114,16 +115,12 @@ export async function updateQuoteStatusAction(id: string, formData: FormData) {
   revalidatePath("/quotes");
 }
 
-async function generateInvoiceNumber() {
-  const year = new Date().getFullYear();
-  const [{ nextval }] = await prisma.$queryRaw<{ nextval: bigint }[]>`
-    SELECT nextval('invoice_number_seq') AS nextval
-  `;
-  return `INV-${year}-${String(nextval).padStart(4, "0")}`;
+function generateInvoiceNumber() {
+  return nextInvoiceNumber(prisma);
 }
 
 export async function convertQuoteToInvoiceAction(id: string) {
-  await requireUser();
+  await requireStaff();
 
   const quote = await prisma.quote.findUniqueOrThrow({
     where: { id },
@@ -161,7 +158,7 @@ export async function convertQuoteToInvoiceAction(id: string) {
 }
 
 export async function deleteDraftQuoteAction(id: string) {
-  await requireUser();
+  await requireStaff();
   const quote = await prisma.quote.findUnique({ where: { id } });
   if (!quote || quote.status !== "DRAFT") {
     return;

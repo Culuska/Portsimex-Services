@@ -37,6 +37,7 @@ export default async function QuoteDetailPage({
         shipment: true,
         items: true,
         invoice: true,
+        serviceRequest: true,
       },
     }),
   ]);
@@ -153,6 +154,32 @@ export default async function QuoteDetailPage({
         </div>
 
         <div className="flex flex-col gap-6">
+          <Card>
+            <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">Service request &amp; jobs</h2>
+            {quote.serviceRequest ? (
+              <div>
+                <p className="text-sm text-zinc-500">Converted to</p>
+                <Link href={`/service-requests/${quote.serviceRequest.id}`} className="text-sm font-medium text-zinc-900 hover:underline dark:text-zinc-50">
+                  {quote.serviceRequest.requestNumber}
+                </Link>
+              </div>
+            ) : quote.status === "ACCEPTED" ? (
+              <>
+                <p className="mb-3 text-sm text-zinc-500">
+                  Accepted quotation &rarr; service request &rarr; one job per service, each with its own workflow, documents and costs.
+                </p>
+                <Link
+                  href={`/service-requests/new?quoteId=${quote.id}`}
+                  className="inline-block rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+                >
+                  Create service request
+                </Link>
+              </>
+            ) : (
+              <p className="text-sm text-zinc-500">Once the client accepts this quotation it becomes a service request and its jobs.</p>
+            )}
+          </Card>
+
           <Card>
             <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">Shipment</h2>
             {quote.shipment ? (

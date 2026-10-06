@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireUser } from "@/lib/session";
+import { requireAdmin, requireStaff } from "@/lib/session";
 
 const shipmentTypes = ["IMPORT", "EXPORT", "TRANSSHIPMENT", "DOMESTIC", "CUSTOMS_CLEARANCE"] as const;
 const transportModes = ["SEA", "AIR", "ROAD"] as const;
@@ -164,7 +164,7 @@ export async function updateShipmentAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireUser();
+  await requireStaff();
   const parsed = updateSchema.safeParse({
     ...readShipmentForm(formData),
     status: formData.get("status"),

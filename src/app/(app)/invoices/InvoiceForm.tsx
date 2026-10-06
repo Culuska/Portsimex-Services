@@ -4,13 +4,14 @@ import { useActionState, useState } from "react";
 import { createInvoiceAction } from "./actions";
 import { convertQuoteToInvoiceAction } from "@/app/(app)/quotes/actions";
 
-type LineItem = { description: string; quantity: string; unitPrice: string };
+type LineItem = { description: string; quantity: string; unitPrice: string; jobId: string };
 
 export default function InvoiceForm({
   clients,
   shipments,
   defaultShipmentId,
   inProcessQuotes = [],
+  jobs = [],
 }: {
   clients: { id: string; name: string }[];
   shipments: { id: string; reference: string; clientId: string }[];
@@ -19,16 +20,19 @@ export default function InvoiceForm({
   // alternative to building the invoice line-by-line once a client with
   // one is selected below.
   inProcessQuotes?: { id: string; quoteNumber: string; clientId: string; total: number }[];
+  // Open jobs per client -- every line should name the Job/Case it bills for.
+  jobs?: { id: string; clientId: string; label: string }[];
 }) {
   const [state, formAction, pending] = useActionState(createInvoiceAction, {
     error: null,
   });
   const [items, setItems] = useState<LineItem[]>([
-    { description: "", quantity: "1", unitPrice: "" },
+    { description: "", quantity: "1", unitPrice: "", jobId: "" },
   ]);
   const [clientId, setClientId] = useState("");
   const clientShipments = clientId ? shipments.filter((s) => s.clientId === clientId) : shipments;
   const clientQuotes = inProcessQuotes.filter((q) => q.clientId === clientId);
+  const clientJobs = jobs.filter((j) => j.clientId === clientId);
 
   const total = items.reduce(
     (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
@@ -42,7 +46,7 @@ export default function InvoiceForm({
   }
 
   function addItem() {
-    setItems((prev) => [...prev, { description: "", quantity: "1", unitPrice: "" }]);
+    setItems((prev) => [...prev, { description: "", quantity: "1", unitPrice: "", jobId: "" }]);
   }
 
   function removeItem(index: number) {
@@ -147,14 +151,26 @@ export default function InvoiceForm({
         </p>
         <div className="flex flex-col gap-2">
           {items.map((item, index) => (
-            <div key={index} className="flex items-center gap-2">
+            <div key={index} className="flex flex-wrap items-center gap-2">
+              <select
+                name="jobId[]"
+                value={item.jobId}
+                onChange={(e) => updateItem(index, "jobId", e.target.value)}
+                disabled={!clientId}
+                className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 sm:w-56"
+              >
+                <option value="">{clientId ? (clientJobs.length ? "Job / case…" : "No open jobs") : "Choose client first"}</option>
+                {clientJobs.map((j) => (
+                  <option key={j.id} value={j.id}>{j.label}</option>
+                ))}
+              </select>
               <input
                 name="description[]"
                 placeholder="Description"
                 required
                 value={item.description}
                 onChange={(e) => updateItem(index, "description", e.target.value)}
-                className="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+                className="min-w-[160px] flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
               />
               <input
                 name="quantity[]"

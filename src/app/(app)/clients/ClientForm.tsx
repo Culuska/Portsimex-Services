@@ -31,6 +31,14 @@ export default function ClientForm({
     agreementType?: string | null;
     services?: string[];
     serviceRates?: Record<string, string>;
+    clientType?: string;
+    contactPerson?: string | null;
+    department?: string | null;
+    country?: string | null;
+    taxNumber?: string | null;
+    paymentTermsDays?: number | null;
+    currency?: string;
+    creditLimit?: string | null;
   };
   submitLabel: string;
 }) {
@@ -61,6 +69,47 @@ export default function ClientForm({
           defaultValue={defaultValues?.name}
           className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="clientType" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Client type</label>
+          <select id="clientType" name="clientType" defaultValue={defaultValues?.clientType ?? "CORPORATE"} className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="CORPORATE">Corporate</option>
+            <option value="NGO">NGO</option>
+            <option value="INTERNATIONAL_ORGANIZATION">International organization</option>
+            <option value="GOVERNMENT_RELATED">Government-related</option>
+            <option value="INDIVIDUAL">Individual</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="country" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Country</label>
+          <input id="country" name="country" defaultValue={defaultValues?.country ?? ""} className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="contactPerson" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Contact person</label>
+          <input id="contactPerson" name="contactPerson" defaultValue={defaultValues?.contactPerson ?? ""} className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="department" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Department</label>
+          <input id="department" name="department" defaultValue={defaultValues?.department ?? ""} className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="taxNumber" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Tax / registration no.</label>
+          <input id="taxNumber" name="taxNumber" defaultValue={defaultValues?.taxNumber ?? ""} className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="paymentTermsDays" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Payment terms (days)</label>
+          <input id="paymentTermsDays" name="paymentTermsDays" type="number" min="0" max="365" placeholder="e.g. 30" defaultValue={defaultValues?.paymentTermsDays ?? ""} className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="currency" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Currency</label>
+          <input id="currency" name="currency" maxLength={3} defaultValue={defaultValues?.currency ?? "USD"} className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 uppercase" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="creditLimit" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Credit limit</label>
+          <input id="creditLimit" name="creditLimit" type="number" min="0" step="0.01" defaultValue={defaultValues?.creditLimit ?? ""} className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
       </div>
       {defaultValues && (
         <div className="flex flex-col gap-1">

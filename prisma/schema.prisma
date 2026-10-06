@@ -181,6 +181,88 @@ enum NotificationType {
   SHIPMENT_CLEARED
 }
 
+// ---------------------------------------------------------------------------
+// Service operations backbone:
+// Client -> Service Request -> Job/Case -> Stages/Tasks/Documents -> Costs
+// -> Invoice -> Payment -> Profit
+// ---------------------------------------------------------------------------
+
+enum ClientType {
+  CORPORATE
+  NGO
+  INTERNATIONAL_ORGANIZATION
+  GOVERNMENT_RELATED
+  INDIVIDUAL
+  OTHER
+}
+
+// Top-level service families. Individual services live in the
+// ServiceDefinition table so new ones can be added without a migration.
+enum ServiceCategory {
+  LOGISTICS
+  TRANSPORT
+  GOVERNMENT_TAX
+  VEHICLE
+  IMMIGRATION
+  COMMUNICATION
+  OTHER
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ServiceRequestStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+  QUOTED
+  APPROVED
+  IN_PROGRESS
+  WAITING
+  COMPLETED
+  CLOSED
+  CANCELLED
+}
+
+enum JobStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  COMPLETED
+  CLOSED
+  CANCELLED
+}
+
+enum JobStageStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  SKIPPED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+// How an operational cost relates to what the client is charged.
+enum ExpenseBillingType {
+  // Company's own cost (office power, overheads) -- never re-charged.
+  NON_BILLABLE
+  // Paid on the client's behalf and re-charged at cost (e.g. a government
+  // fee) -- a recoverable disbursement, not company revenue or expense.
+  BILLABLE
+  // Re-charged at cost plus a handling/service markup; the cost is a
+  // recoverable disbursement and the markup is company revenue.
+  BILLABLE_WITH_MARKUP
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -219,6 +301,14 @@ model User {
   approvedExpenses   Expense[]           @relation("ExpenseApprover")
   ledgerTransactions LedgerTransaction[]
 
+  assignedServiceRequests ServiceRequest[] @relation("ServiceRequestAssignee")
+  createdServiceRequests  ServiceRequest[] @relation("ServiceRequestCreatedBy")
+  responsibleJobs         Job[]            @relation("JobResponsible")
+  completedJobStages      JobStage[]       @relation("JobStageCompletedBy")
+  assignedTasks           JobTask[]        @relation("JobTaskAssignee")
+  receivedJobDocuments    JobDocument[]    @relation("JobDocumentReceivedBy")
+  auditLogs               AuditLog[]
+
   @@map("users")
 }
 
@@ -238,6 +328,20 @@ model Client {
   services      ServiceType[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+
+  clientType       ClientType @default(CORPORATE)
+  contactPerson    String?
+  department       String?
+  country          String?
+  taxNumber        String?
+  // Days from invoice issue to due date (e.g. 30 = net 30).
+  paymentTermsDays Int?
+  currency         String     @default("USD")
+  creditLimit      Decimal?   @db.Decimal(12, 2)
+
+  serviceRequests ServiceRequest[]
+  jobs            Job[]
+  expenses        Expense[]
 
   shipments        Shipment[]
   invoices         Invoice[]
@@ -346,6 +450,7 @@ model Shipment {
   expenses         Expense[]
   quotes           Quote[]
   purchaseRequests PurchaseRequest[]
+  jobs             Job[]
 
   // Ministry document approval & delivery clearance
   clearanceStatus    ClearanceStatus     @default(NOT_STARTED)
@@ -399,6 +504,16 @@ model InvoiceItem {
   invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   invoiceId String
 
+  // Every line should trace back to the Job/Case it bills for.
+  job   Job?    @relation(fields: [jobId], references: [id])
+  jobId String?
+
+  // Set when this line re-charges a billable cost at cost; the ledger then
+  // credits Client Disbursements Recoverable instead of revenue for it.
+  sourceExpense   Expense? @relation("InvoiceItemSourceExpense", fields: [sourceExpenseId], references: [id])
+  sourceExpenseId String?  @unique
+
+  @@index([jobId])
   @@map("invoice_items")
 }
 
@@ -465,9 +580,21 @@ model Expense {
   shipment   Shipment? @relation(fields: [shipmentId], references: [id])
   shipmentId String?
 
+  // Cost attribution: which Job/Case and client this cost belongs to, and
+  // whether (and how) it is re-charged to the client. Locked once accrued,
+  // since it decides which ledger account the cost posts to.
+  job          Job?               @relation(fields: [jobId], references: [id])
+  jobId        String?
+  client       Client?            @relation(fields: [clientId], references: [id])
+  clientId     String?
+  billingType  ExpenseBillingType @default(NON_BILLABLE)
+  markupAmount Decimal            @default(0) @db.Decimal(12, 2)
+
   purchaseRequest    PurchaseRequest?
   ledgerTransactions LedgerTransaction[]
+  invoiceItem        InvoiceItem?        @relation("InvoiceItemSourceExpense")
 
+  @@index([jobId])
   @@map("expenses")
 }
 
@@ -599,8 +726,9 @@ model Quote {
   shipment   Shipment? @relation(fields: [shipmentId], references: [id])
   shipmentId String?
 
-  items   QuoteItem[]
-  invoice Invoice?
+  items          QuoteItem[]
+  invoice        Invoice?
+  serviceRequest ServiceRequest?
 
   // Speeds up "this client's in-process quotes" lookups as the table
   // grows (e.g. the New Invoice cascade picker).
@@ -775,4 +903,251 @@ model Notification {
   userId String
 
   @@map("notifications")
+}
+
+// Configurable service catalog. Each service carries its own workflow
+// template (stages, document checklist, tasks, service-specific fields),
+// copied onto every Job created for it -- so admins can add or adjust
+// services without any schema change, and editing a template never
+// rewrites the history of jobs already in progress.
+model ServiceDefinition {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  name        String
+  category    ServiceCategory
+  // Job numbers are JOB-{jobPrefix}-{year}-{seq}, e.g. JOB-TAX-2026-0002.
+  jobPrefix   String
+  description String?
+  // Expected turnaround in days (0 = same day); drives Job.dueDate.
+  slaDays     Int?
+  active      Boolean         @default(true)
+  sortOrder   Int             @default(0)
+
+  // [{ name, requiresDocuments? }] -- requiresDocuments blocks completing
+  // that stage until every required (non-output) document is received.
+  stages              Json    @default("[]")
+  // [{ name, required, isOutput? }] -- isOutput marks the official output
+  // (certificate, final document, POD...) a job can't be completed without.
+  documents           Json    @default("[]")
+  // [{ title, dueOffsetDays? }]
+  tasks               Json    @default("[]")
+  // [{ key, label, type: "text"|"number"|"date"|"select"|"textarea", options? }]
+  fields              Json    @default("[]")
+  // Bulk services (e.g. 100 SIM registrations): requested must equal
+  // processed + failed before the job can be completed.
+  reconcileQuantities Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobs         Job[]
+  requestLines ServiceRequestLine[]
+
+  @@map("service_definitions")
+}
+
+model ServiceRequest {
+  id                 String               @id @default(cuid())
+  requestNumber      String               @unique
+  status             ServiceRequestStatus @default(SUBMITTED)
+  priority           Priority             @default(NORMAL)
+  requestedByName    String?
+  department         String?
+  requestDate        DateTime             @default(now())
+  requiredBy         DateTime?
+  description        String
+  location           String?
+  assignedDepartment String?
+  estimatedRevenue   Decimal?             @db.Decimal(12, 2)
+  estimatedCost      Decimal?             @db.Decimal(12, 2)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  assignedTo   User?   @relation("ServiceRequestAssignee", fields: [assignedToId], references: [id])
+  assignedToId String?
+
+  createdBy   User?   @relation("ServiceRequestCreatedBy", fields: [createdById], references: [id])
+  createdById String?
+
+  // Set when the request came from an accepted quotation.
+  quote   Quote?  @relation(fields: [quoteId], references: [id])
+  quoteId String? @unique
+
+  lines ServiceRequestLine[]
+  jobs  Job[]
+
+  @@index([clientId, status])
+  @@map("service_requests")
+}
+
+// One requested service within a Service Request; each becomes a Job.
+model ServiceRequestLine {
+  id    String  @id @default(cuid())
+  notes String?
+
+  serviceRequest   ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  serviceRequestId String
+
+  service   ServiceDefinition @relation(fields: [serviceId], references: [id])
+  serviceId String
+
+  job Job?
+
+  @@map("service_request_lines")
+}
+
+// The central Job/Case: every operational activity, whatever the service,
+// gets one -- it is the link between operations and finance.
+model Job {
+  id               String    @id @default(cuid())
+  jobNumber        String    @unique
+  title            String
+  description      String?
+  status           JobStatus @default(OPEN)
+  priority         Priority  @default(NORMAL)
+  startDate        DateTime  @default(now())
+  dueDate          DateTime?
+  completedAt      DateTime?
+  closedAt         DateTime?
+  cancelledAt      DateTime?
+  cancelReason     String?
+  // Service-specific field values, keyed by the service's field keys.
+  details          Json      @default("{}")
+  estimatedRevenue Decimal?  @db.Decimal(12, 2)
+  estimatedCost    Decimal?  @db.Decimal(12, 2)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  service   ServiceDefinition @relation(fields: [serviceId], references: [id])
+  serviceId String
+
+  serviceRequest   ServiceRequest? @relation(fields: [serviceRequestId], references: [id])
+  serviceRequestId String?
+
+  requestLine   ServiceRequestLine? @relation(fields: [requestLineId], references: [id])
+  requestLineId String?             @unique
+
+  responsible   User?   @relation("JobResponsible", fields: [responsibleId], references: [id])
+  responsibleId String?
+
+  // Logistics jobs can be linked to the detailed shipment record.
+  shipment   Shipment? @relation(fields: [shipmentId], references: [id])
+  shipmentId String?
+
+  stages       JobStage[]
+  tasks        JobTask[]
+  documents    JobDocument[]
+  expenses     Expense[]
+  invoiceItems InvoiceItem[]
+
+  @@index([clientId, status])
+  @@index([serviceId, status])
+  @@index([status, dueDate])
+  @@map("jobs")
+}
+
+model JobStage {
+  id                String         @id @default(cuid())
+  position          Int
+  name              String
+  requiresDocuments Boolean        @default(false)
+  status            JobStageStatus @default(PENDING)
+  startedAt         DateTime?
+  completedAt       DateTime?
+  note              String?
+
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId String
+
+  completedBy   User?   @relation("JobStageCompletedBy", fields: [completedById], references: [id])
+  completedById String?
+
+  @@unique([jobId, position])
+  @@map("job_stages")
+}
+
+model JobTask {
+  id          String     @id @default(cuid())
+  title       String
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(NORMAL)
+  dueDate     DateTime?
+  notes       String?
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId String
+
+  assignee   User?   @relation("JobTaskAssignee", fields: [assigneeId], references: [id])
+  assigneeId String?
+
+  @@index([assigneeId, status])
+  @@map("job_tasks")
+}
+
+// Document checklist item. Received documents may carry an uploaded file,
+// or be recorded as received on paper.
+model JobDocument {
+  id         String    @id @default(cuid())
+  name       String
+  required   Boolean   @default(true)
+  isOutput   Boolean   @default(false)
+  received   Boolean   @default(false)
+  receivedAt DateTime?
+  fileUrl    String?
+  fileName   String?
+  reference  String?
+  expiryDate DateTime?
+  note       String?
+
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId String
+
+  receivedBy   User?   @relation("JobDocumentReceivedBy", fields: [receivedById], references: [id])
+  receivedById String?
+
+  @@map("job_documents")
+}
+
+// Append-only audit trail. A database trigger forbids UPDATE and DELETE,
+// so the record holds regardless of which code path touches it.
+model AuditLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  action     String
+  module     String
+  entityType String
+  entityId   String?
+  // Human-readable reference, e.g. "JOB-TAX-2026-0002".
+  reference  String?
+  message    String
+  before     Json?
+  after      Json?
+
+  actor     User?   @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  actorId   String?
+  actorName String?
+
+  jobId String?
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@index([jobId])
+  @@map("audit_logs")
+}
+
+// Atomic per-key counters for document numbers whose key varies at runtime
+// (e.g. one counter per job prefix per year: "JOB-TAX-2026").
+model DocumentCounter {
+  key   String @id
+  value BigInt @default(0)
+
+  @@map("document_counters")
 }

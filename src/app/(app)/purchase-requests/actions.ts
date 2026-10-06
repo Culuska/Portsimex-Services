@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser, requireAdmin } from "@/lib/session";
+import { requireAdmin, requireStaff } from "@/lib/session";
 import { SERVICE_TYPES, RATE_BASED_SERVICE_TYPES } from "@/lib/services";
 
 const purchaseRequestSchema = z.object({
@@ -36,7 +36,7 @@ export async function createPurchaseRequestAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  const user = await requireUser();
+  const user = await requireStaff();
   const parsed = purchaseRequestSchema.safeParse({
     description: formData.get("description"),
     amount: formData.get("amount"),

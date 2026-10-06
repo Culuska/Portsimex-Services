@@ -28,7 +28,7 @@ export default async function InvoiceDetailPage({
     include: {
       client: true,
       shipment: true,
-      items: true,
+      items: { include: { job: { include: { service: true } } } },
       payments: { orderBy: { paidAt: "desc" } },
     },
   });
@@ -71,7 +71,7 @@ export default async function InvoiceDetailPage({
             <table className="w-full text-left text-sm">
               <thead className="text-zinc-500">
                 <tr>
-                  <th className="py-1 font-medium">Service</th>
+                  <th className="py-1 font-medium">Job / service</th>
                   <th className="py-1 font-medium">Description</th>
                   <th className="py-1 font-medium text-right">Qty</th>
                   <th className="py-1 font-medium text-right">Unit price</th>
@@ -82,7 +82,16 @@ export default async function InvoiceDetailPage({
                 {invoice.items.map((item) => (
                   <tr key={item.id}>
                     <td className="py-2 text-zinc-500">
-                      {item.serviceType ? SERVICE_TYPE_LABELS[item.serviceType] : "—"}
+                      {item.job ? (
+                        <>
+                          <Link href={`/jobs/${item.job.id}`} className="text-brand-600 hover:underline">{item.job.jobNumber}</Link>
+                          <p className="text-xs">{item.job.service.name}</p>
+                        </>
+                      ) : item.serviceType ? (
+                        SERVICE_TYPE_LABELS[item.serviceType]
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="py-2">{item.description}</td>
                     <td className="py-2 text-right">{item.quantity.toString()}</td>

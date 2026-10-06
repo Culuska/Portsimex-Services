@@ -7,21 +7,26 @@ import { isFullAccessRole } from "@/lib/roles";
 
 const opsLinks = [
   { href: "/", label: "Dashboard" },
-  { href: "/shipments", label: "Shipments" },
+  { href: "/service-requests", label: "Service Requests" },
+  { href: "/jobs", label: "Jobs / Cases" },
+  { href: "/clients", label: "Clients" },
   { href: "/quotes", label: "Quotes" },
   { href: "/invoices", label: "Invoices" },
-  { href: "/purchase-requests", label: "Purchase Requests" },
   { href: "/expenses", label: "Expenses" },
-  { href: "/clients", label: "Clients" },
+  { href: "/purchase-requests", label: "Purchase Requests" },
+  { href: "/shipments", label: "Shipments" },
   { href: "/vendors", label: "Vendors" },
 ];
 
 const adminExtraLinks = [
+  { href: "/reports", label: "Profitability" },
   { href: "/accounting", label: "Accounting" },
+  { href: "/services", label: "Service Catalog" },
   { href: "/users", label: "Users" },
   { href: "/ministries", label: "Tax Exemption Registry" },
   { href: "/ministry", label: "Tax Exemption Queue" },
   { href: "/deliveries", label: "Deliveries" },
+  { href: "/audit", label: "Audit Trail" },
 ];
 
 // Roles scoped to the ministry-clearance module get a focused menu instead

@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import { attributableJobs } from "@/lib/jobs";
+import { isExpenseBilled, type InvoiceStatus } from "@/lib/job-finance";
 import { auth } from "@/auth";
 import { isFullAccessRole } from "@/lib/roles";
 import { PageHeader, Card, Badge } from "@/components/ui";
@@ -23,7 +26,7 @@ export default async function ExpenseDetailPage({
     auth(),
     prisma.expense.findUnique({
       where: { id },
-      include: { category: true, approvedBy: true },
+      include: { category: true, approvedBy: true, job: true, invoiceItem: { include: { invoice: true } } },
     }),
     prisma.vendor.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.shipment.findMany({
@@ -34,6 +37,8 @@ export default async function ExpenseDetailPage({
   ]);
 
   if (!expense) notFound();
+  const jobs = await attributableJobs(prisma, undefined, expense.jobId);
+  const billed = isExpenseBilled((expense.invoiceItem?.invoice.status as InvoiceStatus | undefined) ?? null);
 
   const isAdmin = !!session && isFullAccessRole(session.user.role);
   const boundUpdate = updateExpenseAction.bind(null, expense.id);
@@ -45,7 +50,7 @@ export default async function ExpenseDetailPage({
     <div>
       <PageHeader
         title={expense.description}
-        description="Expense details"
+        description={expense.job ? `Expense on ${expense.job.jobNumber}` : "Expense details"}
         action={<Badge status={expense.status} />}
       />
 
@@ -56,6 +61,8 @@ export default async function ExpenseDetailPage({
             vendors={vendors}
             shipments={shipments}
             categories={categories}
+            jobs={jobs}
+            lockBilling={billed}
             lockAmount
             lockStatus={expense.status !== "PENDING"}
             defaultValues={{
@@ -66,9 +73,22 @@ export default async function ExpenseDetailPage({
               shipmentId: expense.shipmentId,
               status: expense.status,
               incurredAt: expense.incurredAt,
+              jobId: expense.jobId,
+              billingType: expense.billingType,
+              markupAmount: expense.markupAmount.toString(),
             }}
             submitLabel="Save changes"
           />
+          {(expense.job || expense.invoiceItem) && (
+            <p className="mt-4 border-t border-zinc-100 pt-3 text-sm text-zinc-500 dark:border-zinc-800">
+              {expense.job && (
+                <>Job: <Link href={`/jobs/${expense.job.id}`} className="text-brand-600 hover:underline">{expense.job.jobNumber}</Link>. </>
+              )}
+              {expense.invoiceItem && (
+                <>Re-charged on <Link href={`/invoices/${expense.invoiceItem.invoice.id}`} className="text-brand-600 hover:underline">{expense.invoiceItem.invoice.invoiceNumber}</Link> ({expense.invoiceItem.invoice.status.toLowerCase()}).</>
+              )}
+            </p>
+          )}
         </Card>
 
         {expense.status !== "PENDING" && (
