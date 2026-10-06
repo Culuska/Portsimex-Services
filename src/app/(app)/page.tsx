@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { isFullAccessRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { invoicePaid, invoiceTotal } from "@/lib/invoices";
+import { invoiceBalance } from "@/lib/invoices";
 import { financialsOf, jobFinanceSelect } from "@/lib/jobs";
 import { summarize } from "@/lib/job-finance";
 import { missingRequiredDocuments, slaState } from "@/lib/job-rules";
@@ -46,7 +46,10 @@ export default async function DashboardPage() {
     prisma.expense.findMany({ where: { status: "PENDING_APPROVAL" }, orderBy: { createdAt: "asc" }, take: 10 }),
     prisma.purchaseRequest.count({ where: { status: "PENDING" } }),
     prisma.invoice.findMany({ where: { status: { notIn: ["DRAFT", "CANCELLED"] } }, include: { items: true, payments: true } }),
-    prisma.$queryRaw<{ code: string; balance: string }[]>`SELECT code, balance::text AS balance FROM account_balances WHERE code IN ('1000', '1100', '1200', '2000')`,
+    prisma.$queryRaw<{ code: string; balance: string; kind: string | null }[]>`
+      SELECT ab.code, ab.balance::text AS balance, ma.kind::text AS kind
+      FROM account_balances ab LEFT JOIN money_accounts ma ON ma."accountId" = ab.account_id
+      WHERE ab.code IN ('1000', '1100', '1200', '2000', '2100', '2200') OR ma.id IS NOT NULL`,
     prisma.shipment.count({ where: { status: { notIn: ["COMPLETED", "CANCELLED"] } } }),
     prisma.job.findMany({
       where: { status: { not: "CANCELLED" }, startDate: { gte: yearStart } },
@@ -65,14 +68,16 @@ export default async function DashboardPage() {
   ]);
 
   const bal = (code: string) => Number(balances.find((b) => b.code === code)?.balance ?? 0);
+  const cashOnHand = balances.filter((b) => b.kind === "CASH" || (b.code === "1000" && !b.kind)).reduce((s, b) => s + Number(b.balance), 0);
+  const bankBalance = balances.filter((b) => b.kind === "BANK" || b.kind === "MOBILE_MONEY").reduce((s, b) => s + Number(b.balance), 0);
   const sla = activeJobs.map((j) => ({ j, s: slaState(j) }));
   const overdue = sla.filter((x) => x.s === "OVERDUE").map((x) => x.j);
   const dueToday = sla.filter((x) => x.s === "DUE_TODAY").map((x) => x.j);
   const docsPending = activeJobs.filter((j) => missingRequiredDocuments(j.documents).length > 0);
   const countCat = (c: string) => activeJobs.filter((j) => j.service.category === c).length;
 
-  const receivable = invoices.reduce((s, i) => s + Math.max(invoiceTotal(i.items) - invoicePaid(i.payments), 0), 0);
-  const unpaidCount = invoices.filter((i) => invoiceTotal(i.items) - invoicePaid(i.payments) > 0.005).length;
+  const receivable = invoices.reduce((s, i) => s + Math.max(invoiceBalance(i), 0), 0);
+  const unpaidCount = invoices.filter((i) => invoiceBalance(i) > 0.005).length;
   const yearRows = yearJobs.map((j) => ({ j, f: financialsOf(j) }));
   const yearTotal = summarize(yearRows.map((r) => r.f));
   const unbilled = yearRows.reduce((s, r) => s + r.f.unbilledBillableCosts + r.f.unbilledMarkup, 0);
@@ -117,9 +122,11 @@ export default async function DashboardPage() {
             <StatCard label={`Revenue ${today.getFullYear()}`} value={formatCurrency(yearTotal.revenue)} hint="invoiced on this year's jobs" />
             <StatCard label="Direct costs" value={formatCurrency(yearTotal.costs)} />
             <StatCard label="Gross profit" value={formatCurrency(yearTotal.grossProfit)} hint={yearTotal.marginPercent !== null ? `${yearTotal.marginPercent}% margin` : undefined} />
-            <StatCard label="Cash (ledger)" value={formatCurrency(bal("1000"))} />
+            <StatCard label="Cash on hand" value={formatCurrency(cashOnHand)} />
+            <StatCard label="Bank & mobile money" value={formatCurrency(bankBalance)} />
             <StatCard label="Receivables" value={formatCurrency(receivable)} hint={`${unpaidCount} unpaid invoice${unpaidCount === 1 ? "" : "s"}`} />
-            <StatCard label="Payables" value={formatCurrency(bal("2000"))} />
+            <StatCard label="Payables" value={formatCurrency(bal("2000"))} hint="owed to suppliers" />
+            <StatCard label="Client advances" value={formatCurrency(bal("2100"))} hint="deposits not yet used" />
             <StatCard label="Client disbursements" value={formatCurrency(bal("1200"))} hint="paid for clients, to recover" />
             <StatCard label="Not yet billed" value={formatCurrency(unbilled)} hint="billable costs + fees" />
             <StatCard label="SLA on time" value={onTimePct === null ? "—" : `${onTimePct}%`} hint={`${completedYear.length} jobs completed this year`} />

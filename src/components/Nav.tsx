@@ -15,6 +15,9 @@ const opsLinks = [
   { href: "/quotes", label: "Quotes" },
   { href: "/invoices", label: "Invoices" },
   { href: "/expenses", label: "Expenses" },
+  { href: "/finance/bills", label: "Supplier Bills" },
+  { href: "/finance/advances", label: "Client Advances" },
+  { href: "/finance", label: "Finance" },
   { href: "/purchase-requests", label: "Purchase Requests" },
   { href: "/shipments", label: "Shipments" },
   { href: "/vendors", label: "Vendors" },
@@ -22,6 +25,7 @@ const opsLinks = [
 ];
 
 const adminExtraLinks = [
+  { href: "/finance/reports/profit-loss", label: "Financial Reports" },
   { href: "/reports", label: "Profitability" },
   { href: "/accounting", label: "Accounting" },
   { href: "/services", label: "Service Catalog" },
@@ -59,8 +63,12 @@ export default function Nav({
   return (
     <nav className="flex flex-col gap-1">
       {items.map((item) => {
+        // The most specific matching link wins (/finance/bills over /finance).
+        const matches = (href: string) =>
+          href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
         const active =
-          item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          matches(item.href) &&
+          !items.some((other) => other.href.length > item.href.length && other.href.startsWith(item.href) && matches(other.href));
         return (
           <Link
             key={item.href}

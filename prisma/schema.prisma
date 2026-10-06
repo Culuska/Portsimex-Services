@@ -82,6 +82,32 @@ enum LedgerSourceType {
   EXPENSE_ACCRUAL
   EXPENSE_PAYOUT
   MANUAL
+  INVOICE_REVERSAL
+  EXPENSE_REVERSAL
+  ADVANCE_RECEIPT
+  ADVANCE_REFUND
+  SUPPLIER_PAYMENT
+  TRANSFER
+}
+
+enum MoneyAccountKind {
+  CASH
+  BANK
+  MOBILE_MONEY
+}
+
+// DEPOSIT: money a client paid up front. OVERPAYMENT: the excess of a
+// payment over an invoice's balance, kept as client credit.
+enum AdvanceSource {
+  DEPOSIT
+  OVERPAYMENT
+}
+
+enum SupplierBillStatus {
+  OPEN
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
 }
 
 enum PaymentMethod {
@@ -91,6 +117,8 @@ enum PaymentMethod {
   CARD
   MOBILE_MONEY
   OTHER
+  // Settled from the client's advance / credit balance, not new money.
+  ADVANCE
 }
 
 enum ClientStage {
@@ -359,6 +387,7 @@ model Client {
   serviceRequests ServiceRequest[]
   jobs            Job[]
   expenses        Expense[]
+  advances        ClientAdvance[]
 
   shipments        Shipment[]
   invoices         Invoice[]
@@ -427,6 +456,7 @@ model Vendor {
 
   expenses         Expense[]
   purchaseRequests PurchaseRequest[]
+  supplierBills    SupplierBill[]
 
   @@map("vendors")
 }
@@ -492,6 +522,16 @@ model Invoice {
   // once for the same invoice (set the first time it reaches SENT).
   revenueRecognizedAt DateTime?
 
+  // Invoice-level discount (an amount, taken off the service fees) and tax
+  // rate (%, applied to service fees after discount -- costs re-charged at
+  // cost are disbursements and are not taxed).
+  discountAmount    Decimal   @default(0) @db.Decimal(12, 2)
+  taxRate           Decimal   @default(0) @db.Decimal(5, 2)
+  cancelledAt       DateTime?
+  cancelReason      String?
+  // Set when a cancelled invoice's revenue entry has been reversed.
+  revenueReversedAt DateTime?
+
   client   Client @relation(fields: [clientId], references: [id])
   clientId String
 
@@ -504,6 +544,7 @@ model Invoice {
   items              InvoiceItem[]
   payments           Payment[]
   ledgerTransactions LedgerTransaction[]
+  overpaymentCredits ClientAdvance[]     @relation("AdvanceFromInvoice")
 
   // Speeds up "this client's open/unbilled invoices" lookups as the table
   // grows, instead of a sequential scan filtered by status in app code.
@@ -545,8 +586,17 @@ model Payment {
   invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   invoiceId String
 
+  // Where the money landed (cash box, bank account, mobile money wallet).
+  moneyAccount   MoneyAccount? @relation(fields: [moneyAccountId], references: [id])
+  moneyAccountId String?
+
+  // Set when this payment applies a client advance / credit instead of new money.
+  advance   ClientAdvance? @relation(fields: [advanceId], references: [id])
+  advanceId String?
+
   ledgerTransaction LedgerTransaction?
 
+  @@index([advanceId])
   @@map("payments")
 }
 
@@ -607,11 +657,25 @@ model Expense {
   billingType  ExpenseBillingType @default(NON_BILLABLE)
   markupAmount Decimal            @default(0) @db.Decimal(12, 2)
 
+  // EXP-YYYY-NNNNN (expenses recorded before numbering was introduced have none).
+  expenseNumber     String?        @unique
+  paymentMethod     PaymentMethod?
+  paidFrom          MoneyAccount?  @relation(fields: [paidFromId], references: [id])
+  paidFromId        String?
+  receiptUrl        String?
+  receiptName       String?
+  // A line on a supplier's bill: paid through the bill, not individually.
+  supplierBill      SupplierBill?  @relation(fields: [supplierBillId], references: [id])
+  supplierBillId    String?
+  // Set when a rejected expense's accrual has been reversed out of the ledger.
+  accrualReversedAt DateTime?
+
   purchaseRequest    PurchaseRequest?
   ledgerTransactions LedgerTransaction[]
   invoiceItem        InvoiceItem?        @relation("InvoiceItemSourceExpense")
 
   @@index([jobId])
+  @@index([supplierBillId])
   @@map("expenses")
 }
 
@@ -629,6 +693,7 @@ model Account {
 
   ledgerLines     LedgerLine[]
   expenseCategory ExpenseCategory?
+  moneyAccount    MoneyAccount?
 
   @@map("accounts")
 }
@@ -657,8 +722,21 @@ model LedgerTransaction {
   expense   Expense? @relation(fields: [expenseId], references: [id])
   expenseId String?
 
+  advance   ClientAdvance? @relation(fields: [advanceId], references: [id])
+  advanceId String?
+
+  refund   AdvanceRefund? @relation(fields: [refundId], references: [id])
+  refundId String?        @unique
+
+  supplierPayment   SupplierPayment? @relation(fields: [supplierPaymentId], references: [id])
+  supplierPaymentId String?          @unique
+
+  transfer   MoneyTransfer? @relation(fields: [transferId], references: [id])
+  transferId String?        @unique
+
   lines LedgerLine[]
 
+  @@index([transactionDate])
   @@map("ledger_transactions")
 }
 
@@ -1067,6 +1145,7 @@ model Job {
   submissions  JobSubmission[]
   expenses     Expense[]
   invoiceItems InvoiceItem[]
+  advances     ClientAdvance[]
 
   @@index([clientId, status])
   @@index([serviceId, status])
@@ -1256,4 +1335,157 @@ model JobFollowUp {
   byId String?
 
   @@map("job_follow_ups")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3: money accounts, client advances, supplier bills
+// ---------------------------------------------------------------------------
+
+// A cash box, bank account or mobile money wallet. Each one is backed by
+// its own ASSET account in the chart of accounts, so every receipt and
+// payment says where the money actually is.
+model MoneyAccount {
+  id            String           @id @default(cuid())
+  name          String           @unique
+  kind          MoneyAccountKind @default(BANK)
+  bankName      String?
+  accountNumber String?
+  currency      String           @default("USD")
+  isDefault     Boolean          @default(false)
+  active        Boolean          @default(true)
+  notes         String?
+  createdAt     DateTime         @default(now())
+
+  account   Account @relation(fields: [accountId], references: [id])
+  accountId String  @unique
+
+  payments         Payment[]
+  advances         ClientAdvance[]
+  refunds          AdvanceRefund[]
+  supplierPayments SupplierPayment[]
+  expensesPaid     Expense[]
+  transfersOut     MoneyTransfer[]   @relation("TransferFrom")
+  transfersIn      MoneyTransfer[]   @relation("TransferTo")
+
+  @@map("money_accounts")
+}
+
+// Moving money between the company's own accounts (e.g. banking cash).
+model MoneyTransfer {
+  id            String   @id @default(cuid())
+  amount        Decimal  @db.Decimal(12, 2)
+  transferredAt DateTime
+  reference     String?
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  from   MoneyAccount @relation("TransferFrom", fields: [fromId], references: [id])
+  fromId String
+  to     MoneyAccount @relation("TransferTo", fields: [toId], references: [id])
+  toId   String
+
+  ledgerTransaction LedgerTransaction?
+
+  @@map("money_transfers")
+}
+
+// Money a client paid before being invoiced (or paid in excess of an
+// invoice). A liability -- the company owes the services or the money
+// back -- until applied to an invoice or refunded; never revenue.
+model ClientAdvance {
+  id            String        @id @default(cuid())
+  advanceNumber String        @unique
+  amount        Decimal       @db.Decimal(12, 2)
+  receivedAt    DateTime
+  method        PaymentMethod @default(BANK_TRANSFER)
+  reference     String?
+  notes         String?
+  source        AdvanceSource @default(DEPOSIT)
+  createdAt     DateTime      @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  // Optionally earmarked for a job (e.g. a deposit for a tax exemption case).
+  job   Job?    @relation(fields: [jobId], references: [id])
+  jobId String?
+
+  moneyAccount   MoneyAccount? @relation(fields: [moneyAccountId], references: [id])
+  moneyAccountId String?
+
+  // For OVERPAYMENT credits: the invoice that was overpaid.
+  sourceInvoice   Invoice? @relation("AdvanceFromInvoice", fields: [sourceInvoiceId], references: [id])
+  sourceInvoiceId String?
+
+  applications       Payment[]
+  refunds            AdvanceRefund[]
+  ledgerTransactions LedgerTransaction[]
+
+  @@index([clientId])
+  @@map("client_advances")
+}
+
+model AdvanceRefund {
+  id         String        @id @default(cuid())
+  amount     Decimal       @db.Decimal(12, 2)
+  refundedAt DateTime
+  method     PaymentMethod @default(BANK_TRANSFER)
+  reference  String?
+  reason     String
+  createdAt  DateTime      @default(now())
+
+  advance   ClientAdvance @relation(fields: [advanceId], references: [id])
+  advanceId String
+
+  moneyAccount   MoneyAccount? @relation(fields: [moneyAccountId], references: [id])
+  moneyAccountId String?
+
+  ledgerTransaction LedgerTransaction?
+
+  @@map("advance_refunds")
+}
+
+// A supplier's invoice to us. Its lines are expenses (each attributed to
+// a job / category / billing type as usual), accrued to Accounts Payable
+// when the bill is entered and settled by supplier payments.
+model SupplierBill {
+  id                String             @id @default(cuid())
+  billNumber        String             @unique
+  supplierReference String?
+  billDate          DateTime
+  dueDate           DateTime
+  status            SupplierBillStatus @default(OPEN)
+  notes             String?
+  attachmentUrl     String?
+  attachmentName    String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  vendor   Vendor @relation(fields: [vendorId], references: [id])
+  vendorId String
+
+  lines    Expense[]
+  payments SupplierPayment[]
+
+  @@index([vendorId, status])
+  @@map("supplier_bills")
+}
+
+model SupplierPayment {
+  id        String        @id @default(cuid())
+  amount    Decimal       @db.Decimal(12, 2)
+  paidAt    DateTime
+  method    PaymentMethod @default(BANK_TRANSFER)
+  reference String?
+  createdAt DateTime      @default(now())
+
+  bill   SupplierBill @relation(fields: [billId], references: [id])
+  billId String
+
+  moneyAccount   MoneyAccount? @relation(fields: [moneyAccountId], references: [id])
+  moneyAccountId String?
+
+  ledgerTransaction LedgerTransaction?
+
+  @@map("supplier_payments")
 }

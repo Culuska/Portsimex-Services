@@ -34,10 +34,16 @@ export default function InvoiceForm({
   const clientQuotes = inProcessQuotes.filter((q) => q.clientId === clientId);
   const clientJobs = jobs.filter((j) => j.clientId === clientId);
 
-  const total = items.reduce(
+  const [discount, setDiscount] = useState("");
+  const [taxRate, setTaxRate] = useState("");
+  const subtotal = items.reduce(
     (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
     0,
   );
+  const discountValue = Math.min(Number(discount) || 0, subtotal);
+  const tax = Math.round((subtotal - discountValue) * (Number(taxRate) || 0)) / 100;
+  const total = subtotal - discountValue + tax;
+  const money = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
   function updateItem(index: number, field: keyof LineItem, value: string) {
     setItems((prev) =>
@@ -211,9 +217,39 @@ export default function InvoiceForm({
         >
           + Add line item
         </button>
-        <p className="mt-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Total: {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(total)}
+        <div className="mt-3 flex flex-wrap items-end gap-4">
+          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">
+            Discount (amount)
+            <input
+              name="discountAmount"
+              type="number"
+              min="0"
+              step="0.01"
+              value={discount}
+              onChange={(e) => setDiscount(e.target.value)}
+              className="w-32 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">
+            Tax rate (%)
+            <input
+              name="taxRate"
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={taxRate}
+              onChange={(e) => setTaxRate(e.target.value)}
+              className="w-24 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </label>
+        </div>
+        <p className="mt-3 text-sm text-zinc-500">
+          Subtotal {money(subtotal)}
+          {discountValue > 0 ? ` · discount -${money(discountValue)}` : ""}
+          {tax > 0 ? ` · tax ${money(tax)}` : ""}
         </p>
+        <p className="mt-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">Total: {money(total)}</p>
       </div>
 
       <div className="flex flex-col gap-1">

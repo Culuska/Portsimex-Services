@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Badge, Card, EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { invoiceBalance, invoiceTotal } from "@/lib/invoices";
+import { invoiceBalance, invoiceNetOfTax, invoiceTotal } from "@/lib/invoices";
 import ShipmentForm from "../ShipmentForm";
 import { updateShipmentAction } from "../actions";
 
@@ -41,7 +41,7 @@ export default async function ShipmentDetailPage({
 
   const revenue = shipment.invoices
     .filter((inv) => inv.status !== "DRAFT" && inv.status !== "CANCELLED")
-    .reduce((sum, inv) => sum + invoiceTotal(inv.items), 0);
+    .reduce((sum, inv) => sum + invoiceNetOfTax(inv), 0);
   const costs = shipment.expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const margin = revenue - costs;
 
@@ -152,7 +152,7 @@ export default async function ShipmentDetailPage({
                         {inv.invoiceNumber}
                       </Link>
                       <p className="text-xs text-zinc-500">
-                        Balance {formatCurrency(invoiceBalance(inv.items, inv.payments))}
+                        Balance {formatCurrency(inv.status === "CANCELLED" ? 0 : invoiceBalance(inv))}
                       </p>
                     </div>
                     <Badge status={inv.status} />

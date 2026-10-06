@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { attributableJobs } from "@/lib/jobs";
+import { activeMoneyAccounts } from "@/lib/finance";
 import { PageHeader } from "@/components/ui";
 import ExpenseForm from "../ExpenseForm";
 import { createExpenseAction } from "../actions";
@@ -10,7 +11,7 @@ export default async function NewExpensePage({
   searchParams: Promise<{ shipmentId?: string; jobId?: string }>;
 }) {
   const { shipmentId, jobId } = await searchParams;
-  const [vendors, shipments, categories, jobs] = await Promise.all([
+  const [vendors, shipments, categories, jobs, moneyAccounts] = await Promise.all([
     prisma.vendor.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.shipment.findMany({
       orderBy: { createdAt: "desc" },
@@ -18,6 +19,7 @@ export default async function NewExpensePage({
     }),
     prisma.expenseCategory.findMany({ orderBy: { name: "asc" } }),
     attributableJobs(prisma),
+    activeMoneyAccounts(),
   ]);
 
   return (
@@ -29,6 +31,8 @@ export default async function NewExpensePage({
         shipments={shipments}
         categories={categories}
         jobs={jobs}
+        moneyAccounts={moneyAccounts}
+        allowReceipt
         defaultValues={
           shipmentId || jobId
             ? {

@@ -5,10 +5,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireStaff } from "@/lib/session";
-import { accrueExpense, payoutExpense } from "@/lib/ledger";
+import { accrueExpense, payoutExpense, reverseExpenseAccrual } from "@/lib/ledger";
+import { nextFinanceNumber } from "@/lib/numbering";
+import { uploadJobFile } from "@/lib/blob";
 import { assertCanTransitionExpenseStatus, decideExpenseStatus } from "@/lib/expense-approval";
 import { audit } from "@/lib/audit";
 import { isExpenseBilled, type InvoiceStatus } from "@/lib/job-finance";
+import { syncBillStatus } from "@/lib/finance";
+import { businessDate } from "@/lib/finance-rules";
 
 const billingTypes = ["NON_BILLABLE", "BILLABLE", "BILLABLE_WITH_MARKUP"] as const;
 
@@ -36,6 +40,17 @@ async function resolveAttribution(input: {
 }
 
 const expenseStatuses = ["PENDING", "PAID"] as const;
+const payMethods = ["BANK_TRANSFER", "CASH", "CHECK", "CARD", "MOBILE_MONEY", "OTHER"] as const;
+
+// Where the money for a paid expense came from (cash box, bank...).
+function paymentSource(formData: FormData) {
+  const paidFromId = String(formData.get("paidFromId") ?? "") || null;
+  const m = String(formData.get("paymentMethod") ?? "");
+  const paymentMethod = (payMethods as readonly string[]).includes(m) ? (m as (typeof payMethods)[number]) : null;
+  return { paidFromId, paymentMethod };
+}
+
+const MAX_RECEIPT_BYTES = 4 * 1024 * 1024;
 
 const createExpenseSchema = z.object({
   description: z.string().min(1, "Description is required"),
@@ -95,6 +110,18 @@ export async function createExpenseAction(
   if ("error" in attribution) return attribution;
 
   const status = decideExpenseStatus(parsed.data.amount, parsed.data.status);
+  const source = paymentSource(formData);
+
+  let receipt: { url: string; fileName: string } | null = null;
+  const file = formData.get("receipt");
+  if (file instanceof File && file.size > 0) {
+    if (file.size > MAX_RECEIPT_BYTES) return { error: "The receipt file is too large (max 4 MB)." };
+    try {
+      receipt = await uploadJobFile(file, attribution.jobId ?? "expenses");
+    } catch {
+      return { error: "The receipt could not be uploaded -- file storage isn't configured. Save without it and attach it later." };
+    }
+  }
 
   const expense = await prisma.$transaction(async (tx) => {
     const category = await tx.expenseCategory.upsert({
@@ -111,12 +138,17 @@ export async function createExpenseAction(
         vendorId: parsed.data.vendorId || null,
         shipmentId: parsed.data.shipmentId || null,
         status,
-        incurredAt: new Date(parsed.data.incurredAt),
+        incurredAt: businessDate(parsed.data.incurredAt),
         paidAt: status === "PAID" ? new Date() : null,
         jobId: attribution.jobId,
         clientId: attribution.clientId,
         billingType: parsed.data.billingType,
         markupAmount: attribution.markupAmount,
+        expenseNumber: await nextFinanceNumber(tx, "EXP"),
+        paidFromId: status === "PAID" ? source.paidFromId : null,
+        paymentMethod: status === "PAID" ? source.paymentMethod : null,
+        receiptUrl: receipt?.url ?? null,
+        receiptName: receipt?.fileName ?? null,
       },
       include: { job: true },
     });
@@ -192,6 +224,10 @@ export async function updateExpenseAction(
   if (nextStatus !== existing.status) {
     assertCanTransitionExpenseStatus(existing.status, nextStatus);
   }
+  if (nextStatus === "PAID" && existing.status !== "PAID" && existing.supplierBillId) {
+    return { error: "This cost is a line on a supplier bill -- it is paid through the bill." };
+  }
+  const source = paymentSource(formData);
 
   await prisma.$transaction(async (tx) => {
     await tx.expense.update({
@@ -201,8 +237,9 @@ export async function updateExpenseAction(
         vendorId: parsed.data.vendorId || null,
         shipmentId: parsed.data.shipmentId || null,
         status: nextStatus,
-        incurredAt: new Date(parsed.data.incurredAt),
+        incurredAt: businessDate(parsed.data.incurredAt),
         paidAt: nextStatus === "PAID" ? (existing.paidAt ?? new Date()) : existing.paidAt,
+        ...(nextStatus === "PAID" && existing.status !== "PAID" ? { paidFromId: source.paidFromId, paymentMethod: source.paymentMethod } : {}),
         jobId: attribution.jobId,
         clientId: attribution.clientId,
         markupAmount: attribution.markupAmount,
@@ -256,8 +293,11 @@ export async function rejectExpenseAction(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const expense = await prisma.expense.findUniqueOrThrow({ where: { id } });
+  const expense = await prisma.expense.findUniqueOrThrow({ where: { id }, include: { supplierBill: { include: { payments: true } } } });
   assertCanTransitionExpenseStatus(expense.status, "REJECTED");
+  if (expense.supplierBill && expense.supplierBill.payments.length > 0) {
+    return { error: `Bill ${expense.supplierBill.billNumber} already has payments -- a line on it can't be rejected now.` };
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.expense.update({
@@ -269,6 +309,9 @@ export async function rejectExpenseAction(
         rejectedReason: parsed.data.reason,
       },
     });
+    // A rejected cost is not a cost: undo its accrual (Dr AP / Cr cost).
+    await reverseExpenseAccrual(tx, id, admin.id);
+    if (expense.supplierBillId) await syncBillStatus(tx, expense.supplierBillId);
     await audit(tx, admin, {
       action: "EXPENSE_REJECTED",
       module: "Expenses",
@@ -284,13 +327,15 @@ export async function rejectExpenseAction(
   return { error: null };
 }
 
-export async function payExpenseAction(id: string) {
+export async function payExpenseAction(id: string, formData?: FormData) {
   const user = await requireStaff();
   const expense = await prisma.expense.findUniqueOrThrow({ where: { id } });
   assertCanTransitionExpenseStatus(expense.status, "PAID");
+  if (expense.supplierBillId) throw new Error("This cost is a line on a supplier bill -- pay it through the bill.");
+  const source = formData ? paymentSource(formData) : { paidFromId: null, paymentMethod: null };
 
   await prisma.$transaction(async (tx) => {
-    await tx.expense.update({ where: { id }, data: { status: "PAID", paidAt: new Date() } });
+    await tx.expense.update({ where: { id }, data: { status: "PAID", paidAt: new Date(), ...source } });
     await payoutExpense(tx, id, user.id);
     await audit(tx, user, {
       action: "EXPENSE_PAID",

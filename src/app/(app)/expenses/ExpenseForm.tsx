@@ -41,6 +41,8 @@ export default function ExpenseForm({
   lockAmount = false,
   lockStatus = false,
   lockBilling = false,
+  moneyAccounts = [],
+  allowReceipt = false,
 }: {
   action: ExpenseFormAction;
   vendors: { id: string; name: string }[];
@@ -69,9 +71,13 @@ export default function ExpenseForm({
   lockStatus?: boolean;
   // True once the cost is on an invoice -- job and markup can no longer change.
   lockBilling?: boolean;
+  // Cash / bank accounts the expense can be paid from.
+  moneyAccounts?: { id: string; name: string }[];
+  allowReceipt?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null });
   const [billingType, setBillingType] = useState(defaultValues?.billingType ?? "");
+  const [status, setStatus] = useState(defaultValues?.status ?? "PENDING");
 
   const incurredAtValue = defaultValues
     ? new Date(defaultValues.incurredAt).toISOString().slice(0, 10)
@@ -256,7 +262,8 @@ export default function ExpenseForm({
           <select
             id="status"
             name="status"
-            defaultValue={defaultValues?.status ?? "PENDING"}
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
             className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="PENDING">Pending</option>
@@ -265,6 +272,45 @@ export default function ExpenseForm({
           <p className="text-xs text-zinc-500">
             Amounts over $500 are automatically routed to approval instead of Paid.
           </p>
+        </div>
+      )}
+
+      {!lockStatus && status === "PAID" && moneyAccounts.length > 0 && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="paidFromId" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Paid from
+            </label>
+            <select id="paidFromId" name="paidFromId" className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+              {moneyAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="paymentMethod" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Payment method
+            </label>
+            <select id="paymentMethod" name="paymentMethod" defaultValue="CASH" className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="CASH">Cash</option>
+              <option value="BANK_TRANSFER">Bank transfer</option>
+              <option value="MOBILE_MONEY">Mobile money</option>
+              <option value="CARD">Card</option>
+              <option value="CHECK">Cheque</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {allowReceipt && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor="receipt" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Receipt (optional)
+          </label>
+          <input id="receipt" name="receipt" type="file" accept="image/*,application/pdf" className="text-sm text-zinc-600 dark:text-zinc-300" />
         </div>
       )}
 

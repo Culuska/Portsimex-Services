@@ -22,6 +22,8 @@ export default function DocumentPreview({
   items,
   notes,
   extraTotals,
+  adjustments,
+  grandTotal,
 }: {
   docType: "TAX INVOICE" | "QUOTATION";
   number: string;
@@ -34,11 +36,15 @@ export default function DocumentPreview({
   items: DocumentItem[];
   notes: string | null;
   extraTotals?: { label: string; value: string }[];
+  /** Lines between subtotal and total (discount as a negative amount, tax). */
+  adjustments?: { label: string; amount: number }[];
+  grandTotal?: number;
 }) {
-  const total = items.reduce(
+  const subtotal = items.reduce(
     (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
     0,
   );
+  const total = grandTotal ?? subtotal;
   const isInvoice = docType === "TAX INVOICE";
   const ribbonColor = isInvoice ? "bg-brand-800" : "bg-accent-700";
 
@@ -124,8 +130,14 @@ export default function DocumentPreview({
             <div className="w-64">
               <div className="flex justify-between border-t border-zinc-200 py-1.5 text-sm text-zinc-500">
                 <span>Subtotal</span>
-                <span>{formatCurrency(total)}</span>
+                <span>{formatCurrency(subtotal)}</span>
               </div>
+              {adjustments?.filter((a) => Math.abs(a.amount) >= 0.005).map((a) => (
+                <div key={a.label} className="flex justify-between py-1.5 text-sm text-zinc-500">
+                  <span>{a.label}</span>
+                  <span>{a.amount < 0 ? `-${formatCurrency(-a.amount)}` : formatCurrency(a.amount)}</span>
+                </div>
+              ))}
               <div className="flex justify-between bg-brand-800 px-3 py-2 text-sm font-semibold text-white">
                 <span>Total</span>
                 <span>{formatCurrency(total)}</span>

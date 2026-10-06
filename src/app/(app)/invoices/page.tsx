@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { invoiceBalance, invoiceTotal } from "@/lib/invoices";
+import { invoiceBalance, invoiceGrandTotal } from "@/lib/invoices";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 
 export default async function InvoicesPage() {
@@ -46,10 +46,10 @@ export default async function InvoicesPage() {
                   <td className="px-4 py-3 text-zinc-500">{inv.client.name}</td>
                   <td className="px-4 py-3 text-zinc-500">{formatDate(inv.dueDate)}</td>
                   <td className="px-4 py-3 text-zinc-500">
-                    {formatCurrency(invoiceTotal(inv.items))}
+                    {formatCurrency(invoiceGrandTotal(inv))}
                   </td>
                   <td className="px-4 py-3 text-zinc-500">
-                    {formatCurrency(Math.max(invoiceBalance(inv.items, inv.payments), 0))}
+                    {formatCurrency(inv.status === "CANCELLED" ? 0 : Math.max(invoiceBalance(inv), 0))}
                   </td>
                   <td className="px-4 py-3">
                     <Badge status={inv.status} />

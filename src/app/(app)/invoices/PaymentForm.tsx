@@ -12,7 +12,15 @@ const METHODS = [
   "OTHER",
 ] as const;
 
-export default function PaymentForm({ invoiceId }: { invoiceId: string }) {
+export default function PaymentForm({
+  invoiceId,
+  moneyAccounts,
+  balance,
+}: {
+  invoiceId: string;
+  moneyAccounts: { id: string; name: string }[];
+  balance: number;
+}) {
   const boundAction = addPaymentAction.bind(null, invoiceId);
   const [state, formAction, pending] = useActionState(boundAction, { error: null });
   const today = new Date().toISOString().slice(0, 10);
@@ -31,6 +39,7 @@ export default function PaymentForm({ invoiceId }: { invoiceId: string }) {
             min="0"
             step="0.01"
             required
+            defaultValue={balance > 0 ? balance.toFixed(2) : undefined}
             className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
@@ -77,6 +86,23 @@ export default function PaymentForm({ invoiceId }: { invoiceId: string }) {
           />
         </div>
       </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor="moneyAccountId" className="text-xs font-medium text-zinc-500">
+          Received into
+        </label>
+        <select
+          id="moneyAccountId"
+          name="moneyAccountId"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          {moneyAccounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="text-xs text-zinc-500">Anything paid above the balance is kept as client credit for a later invoice or refund.</p>
       {state.error && (
         <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
       )}

@@ -4,6 +4,7 @@ import { nextJobNumber } from "@/lib/numbering";
 import { computeDueDate } from "@/lib/job-rules";
 import { deriveRequestStatus } from "@/lib/request-rules";
 import { computeJobFinancials, type BillingType, type InvoiceStatus } from "@/lib/job-finance";
+import { invoiceGrandTotal, netLineAmount } from "@/lib/invoices";
 import { parseDocuments, parseStages, parseTasks } from "@/lib/service-templates";
 
 type Tx = Prisma.TransactionClient;
@@ -102,11 +103,14 @@ export const jobFinanceSelect = {
     select: {
       quantity: true,
       unitPrice: true,
+      sourceExpenseId: true,
       invoice: {
         select: {
           id: true,
           status: true,
-          items: { select: { quantity: true, unitPrice: true } },
+          discountAmount: true,
+          taxRate: true,
+          items: { select: { quantity: true, unitPrice: true, sourceExpenseId: true } },
           payments: { select: { amount: true } },
         },
       },
@@ -126,10 +130,12 @@ export function financialsOf(job: FinanceShape) {
       billedOnInvoiceStatus: (e.invoiceItem?.invoice.status as InvoiceStatus | undefined) ?? null,
     })),
     job.invoiceItems.map((l) => ({
-      amount: Number(l.quantity) * Number(l.unitPrice),
+      // Revenue net of this line's share of any invoice discount; payments
+      // are allocated by the share of the (tax-inclusive) total paid.
+      amount: netLineAmount(l, l.invoice),
       invoiceId: l.invoice.id,
       invoiceStatus: l.invoice.status as InvoiceStatus,
-      invoiceTotal: l.invoice.items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0),
+      invoiceTotal: invoiceGrandTotal(l.invoice),
       invoicePaid: l.invoice.payments.reduce((s, p) => s + Number(p.amount), 0),
     })),
   );

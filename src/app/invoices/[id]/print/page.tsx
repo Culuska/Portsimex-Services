@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { SERVICE_TYPE_LABELS } from "@/lib/services";
 import { formatCurrency } from "@/lib/format";
-import { invoiceBalance, invoicePaid } from "@/lib/invoices";
+import { invoiceBalance, invoicePaid, invoiceTotals } from "@/lib/invoices";
 import DocumentPreview from "@/components/DocumentPreview";
 
 export default async function InvoicePrintPage({
@@ -21,7 +21,8 @@ export default async function InvoicePrintPage({
   if (!invoice) notFound();
 
   const paid = invoicePaid(invoice.payments);
-  const balance = invoiceBalance(invoice.items, invoice.payments);
+  const balance = invoiceBalance(invoice);
+  const t = invoiceTotals(invoice);
 
   return (
     <div className="min-h-screen bg-zinc-100 py-8 print:bg-white print:py-0">
@@ -42,6 +43,11 @@ export default async function InvoicePrintPage({
           unitPrice: item.unitPrice.toString(),
         }))}
         notes={invoice.notes}
+        adjustments={[
+          { label: "Discount", amount: -t.discount },
+          { label: `Tax (${t.taxRate}%)`, amount: t.tax },
+        ]}
+        grandTotal={t.total}
         extraTotals={
           paid > 0
             ? [

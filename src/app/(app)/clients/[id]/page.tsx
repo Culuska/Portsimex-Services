@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { invoicePaid, invoiceTotal } from "@/lib/invoices";
+import { invoiceBalance, invoiceGrandTotal, invoiceNetOfTax, invoicePaid } from "@/lib/invoices";
 import { financialsOf, jobFinanceSelect } from "@/lib/jobs";
+import { clientCredits } from "@/lib/finance";
 import { SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
 import { AGREEMENT_TYPE_LABELS, SERVICE_TYPE_LABELS } from "@/lib/services";
 import ClientForm from "../ClientForm";
@@ -47,11 +48,13 @@ export default async function ClientDetailPage({
   });
   const issued = client.invoices.filter((i) => !["DRAFT", "CANCELLED"].includes(i.status));
   const today = new Date(new Date().setHours(0, 0, 0, 0));
-  const revenue = issued.reduce((s, i) => s + invoiceTotal(i.items), 0);
-  const paid = issued.reduce((s, i) => s + Math.min(invoicePaid(i.payments), invoiceTotal(i.items)), 0);
+  const revenue = issued.reduce((s, i) => s + invoiceNetOfTax(i), 0);
+  const paid = issued.reduce((s, i) => s + Math.min(invoicePaid(i.payments), invoiceGrandTotal(i)), 0);
   const overdue = issued
     .filter((i) => i.dueDate < today)
-    .reduce((s, i) => s + Math.max(invoiceTotal(i.items) - invoicePaid(i.payments), 0), 0);
+    .reduce((s, i) => s + Math.max(invoiceBalance(i), 0), 0);
+  const outstanding = issued.reduce((s, i) => s + Math.max(invoiceBalance(i), 0), 0);
+  const credit = (await clientCredits(prisma, client.id)).reduce((s, c) => s + c.remaining, 0);
   const directCosts = Number(costs._sum.amount ?? 0);
   const grossProfit = revenue - directCosts;
   const margin = revenue > 0 ? Math.round((grossProfit / revenue) * 1000) / 10 : null;
@@ -74,19 +77,26 @@ export default async function ClientDetailPage({
         description={`Client 360° · Code ${client.mnemonic} · ${client.clientType.replace(/_/g, " ").toLowerCase()}${client.contactPerson ? ` · ${client.contactPerson}` : ""}${client.paymentTermsDays !== null ? ` · net ${client.paymentTermsDays} days` : ""}`}
         action={
           <div className="flex items-center gap-3">
+            <Link href={`/finance/reports/statement?client=${client.id}&from=${new Date().getFullYear()}-01-01`} className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
+              Statement
+            </Link>
+            <Link href={`/finance/advances?client=${client.id}`} className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
+              Advances
+            </Link>
             <ButtonLink href={`/service-requests/new?clientId=${client.id}`}>New service request</ButtonLink>
             <Badge status={client.stage} />
           </div>
         }
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-6">
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-7">
         <StatCard label="Total revenue" value={formatCurrency(revenue)} hint="issued invoices" />
         <StatCard label="Direct costs" value={formatCurrency(directCosts)} />
         <StatCard label="Gross profit" value={formatCurrency(grossProfit)} hint={margin !== null ? `${margin}% margin` : undefined} />
         <StatCard label="Paid" value={formatCurrency(paid)} />
-        <StatCard label="Outstanding" value={formatCurrency(revenue - paid)} hint={client.creditLimit ? `limit ${formatCurrency(client.creditLimit.toString())}` : undefined} />
+        <StatCard label="Outstanding" value={formatCurrency(outstanding)} hint={client.creditLimit ? `limit ${formatCurrency(client.creditLimit.toString())}` : undefined} />
         <StatCard label="Overdue" value={formatCurrency(overdue)} />
+        <StatCard label="Advance / credit" value={formatCurrency(credit)} hint="unused deposits" />
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">

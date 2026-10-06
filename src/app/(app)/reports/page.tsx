@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { isFullAccessRole } from "@/lib/roles";
+import { netLineAmount } from "@/lib/invoices";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/format";
 import { financialsOf, jobFinanceSelect } from "@/lib/jobs";
@@ -26,13 +27,18 @@ export default async function ProfitabilityPage({ searchParams }: { searchParams
     // so totals reconcile with the invoice register.
     prisma.invoiceItem.findMany({
       where: { jobId: null, invoice: { status: { notIn: ["DRAFT", "CANCELLED"] }, ...(range ? { issueDate: range } : {}) } },
-      select: { quantity: true, unitPrice: true },
+      select: {
+        quantity: true,
+        unitPrice: true,
+        sourceExpenseId: true,
+        invoice: { select: { discountAmount: true, taxRate: true, items: { select: { quantity: true, unitPrice: true, sourceExpenseId: true } } } },
+      },
     }),
   ]);
 
   const rows = jobs.map((j) => ({ job: j, f: financialsOf(j), sla: slaState(j) }));
   const total = summarize(rows.map((r) => r.f));
-  const unlinkedRevenue = unlinked.reduce((s, l) => s + Number(l.quantity) * Number(l.unitPrice), 0);
+  const unlinkedRevenue = unlinked.reduce((s, l) => s + netLineAmount(l, l.invoice), 0);
 
   const byCategory = SERVICE_CATEGORIES.map((c) => {
     const rs = rows.filter((r) => r.job.service.category === c);

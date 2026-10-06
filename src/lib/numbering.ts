@@ -36,3 +36,10 @@ export async function nextInvoiceNumber(db: Db, year = new Date().getFullYear())
   const [{ nextval }] = await db.$queryRaw<{ nextval: bigint }[]>`SELECT nextval('invoice_number_seq') AS nextval`;
   return `INV-${year}-${String(nextval).padStart(4, "0")}`;
 }
+
+// Yearly numbered finance documents: ADV-2026-00001 (client advances),
+// BILL-2026-00001 (supplier bills), EXP-2026-00001 (expenses).
+export async function nextFinanceNumber(db: Db, prefix: "ADV" | "BILL" | "EXP", year = new Date().getFullYear()) {
+  const seq = await nextCounter(db, `${prefix}-${year}`);
+  return `${prefix}-${year}-${String(seq).padStart(5, "0")}`;
+}

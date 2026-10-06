@@ -7,6 +7,8 @@ import { auth } from "@/auth";
 import { isFullAccessRole } from "@/lib/roles";
 import { PageHeader, Card, Badge } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { activeMoneyAccounts, PAYMENT_METHOD_LABELS } from "@/lib/finance";
+import { fieldClass } from "@/components/ActionForm";
 import ExpenseForm from "../ExpenseForm";
 import RejectExpenseForm from "../RejectExpenseForm";
 import {
@@ -22,11 +24,11 @@ export default async function ExpenseDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [session, expense, vendors, shipments, categories] = await Promise.all([
+  const [session, expense, vendors, shipments, categories, moneyAccounts] = await Promise.all([
     auth(),
     prisma.expense.findUnique({
       where: { id },
-      include: { category: true, approvedBy: true, job: true, invoiceItem: { include: { invoice: true } } },
+      include: { category: true, approvedBy: true, job: true, invoiceItem: { include: { invoice: true } }, paidFrom: true, supplierBill: true },
     }),
     prisma.vendor.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.shipment.findMany({
@@ -34,6 +36,7 @@ export default async function ExpenseDetailPage({
       select: { id: true, reference: true },
     }),
     prisma.expenseCategory.findMany({ orderBy: { name: "asc" } }),
+    activeMoneyAccounts(),
   ]);
 
   if (!expense) notFound();
@@ -50,7 +53,7 @@ export default async function ExpenseDetailPage({
     <div>
       <PageHeader
         title={expense.description}
-        description={expense.job ? `Expense on ${expense.job.jobNumber}` : "Expense details"}
+        description={`${expense.expenseNumber ? `${expense.expenseNumber} · ` : ""}${expense.job ? `Expense on ${expense.job.jobNumber}` : "Expense details"}`}
         action={<Badge status={expense.status} />}
       />
 
@@ -64,7 +67,8 @@ export default async function ExpenseDetailPage({
             jobs={jobs}
             lockBilling={billed}
             lockAmount
-            lockStatus={expense.status !== "PENDING"}
+            lockStatus={expense.status !== "PENDING" || !!expense.supplierBillId}
+            moneyAccounts={moneyAccounts}
             defaultValues={{
               description: expense.description,
               amount: expense.amount.toString(),
@@ -79,6 +83,24 @@ export default async function ExpenseDetailPage({
             }}
             submitLabel="Save changes"
           />
+          {(expense.supplierBill || expense.receiptUrl) && (
+            <p className="mt-4 border-t border-zinc-100 pt-3 text-sm text-zinc-500 dark:border-zinc-800">
+              {expense.supplierBill && (
+                <>
+                  Line on supplier bill{" "}
+                  <Link href={`/finance/bills/${expense.supplierBill.id}`} className="text-brand-600 hover:underline">
+                    {expense.supplierBill.billNumber}
+                  </Link>{" "}
+                  -- paid through the bill.{" "}
+                </>
+              )}
+              {expense.receiptUrl && (
+                <a href={expense.receiptUrl} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">
+                  View receipt{expense.receiptName ? ` (${expense.receiptName})` : ""}
+                </a>
+              )}
+            </p>
+          )}
           {(expense.job || expense.invoiceItem) && (
             <p className="mt-4 border-t border-zinc-100 pt-3 text-sm text-zinc-500 dark:border-zinc-800">
               {expense.job && (
@@ -125,14 +147,44 @@ export default async function ExpenseDetailPage({
                   Approved by {expense.approvedBy?.name ?? "—"} on {formatDate(expense.approvedAt)}.
                   Ready to pay out.
                 </p>
-                <form action={boundPay}>
-                  <button
-                    type="submit"
-                    className="w-fit rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-                  >
-                    Mark paid
-                  </button>
-                </form>
+                {expense.supplierBill ? (
+                  <p className="text-sm text-zinc-500">
+                    Pay it through bill{" "}
+                    <Link href={`/finance/bills/${expense.supplierBill.id}`} className="text-brand-600 hover:underline">
+                      {expense.supplierBill.billNumber}
+                    </Link>
+                    .
+                  </p>
+                ) : (
+                  <form action={boundPay} className="flex flex-wrap items-end gap-3">
+                    <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">
+                      Paid from
+                      <select name="paidFromId" className={fieldClass}>
+                        {moneyAccounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">
+                      Method
+                      <select name="paymentMethod" defaultValue="BANK_TRANSFER" className={fieldClass}>
+                        {["BANK_TRANSFER", "CASH", "MOBILE_MONEY", "CARD", "CHECK", "OTHER"].map((m) => (
+                          <option key={m} value={m}>
+                            {PAYMENT_METHOD_LABELS[m]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="submit"
+                      className="w-fit rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+                    >
+                      Mark paid
+                    </button>
+                  </form>
+                )}
               </>
             )}
 
@@ -145,7 +197,10 @@ export default async function ExpenseDetailPage({
 
             {expense.status === "PAID" && (
               <p className="text-sm text-emerald-700 dark:text-emerald-400">
-                Paid on {formatDate(expense.paidAt)}.
+                Paid on {formatDate(expense.paidAt)}
+                {expense.paidFrom ? ` from ${expense.paidFrom.name}` : ""}
+                {expense.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[expense.paymentMethod]})` : ""}
+                {expense.supplierBill ? ` through bill ${expense.supplierBill.billNumber}` : ""}.
               </p>
             )}
           </Card>

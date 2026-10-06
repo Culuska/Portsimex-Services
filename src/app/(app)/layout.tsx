@@ -34,13 +34,15 @@ export default async function AppLayout({
 
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black sm:flex-row">
-      <MobileMenu
-        role={session.user.role}
-        userName={session.user.name}
-        userRole={session.user.role}
-        unreadCount={unreadCount}
-      />
-      <aside className="hidden w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 sm:flex sm:flex-col sm:justify-between">
+      <div className="print:hidden">
+        <MobileMenu
+          role={session.user.role}
+          userName={session.user.name}
+          userRole={session.user.role}
+          unreadCount={unreadCount}
+        />
+      </div>
+      <aside className="hidden print:!hidden w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 sm:flex sm:flex-col sm:justify-between">
         <div>
           <div className="px-3 pb-6">
             <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">
@@ -71,7 +73,7 @@ export default async function AppLayout({
           </div>
         </div>
       </aside>
-      <main className="flex-1 overflow-x-hidden p-4 sm:p-8">{children}</main>
+      <main className="flex-1 overflow-x-hidden p-4 sm:p-8 print:p-0">{children}</main>
     </div>
   );
 }
