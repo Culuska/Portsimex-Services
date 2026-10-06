@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
@@ -49,7 +50,15 @@ export default async function NotificationsPage() {
                   }`}
                 >
                   <div>
-                    <p className="text-zinc-900 dark:text-zinc-50">{n.message}</p>
+                    <p className="text-zinc-900 dark:text-zinc-50">
+                      {n.jobId ? (
+                        <Link href={`/jobs/${n.jobId}`} className="hover:underline">{n.message}</Link>
+                      ) : n.shipmentId ? (
+                        <Link href={`/shipments/${n.shipmentId}`} className="hover:underline">{n.message}</Link>
+                      ) : (
+                        n.message
+                      )}
+                    </p>
                     <p className="text-xs text-zinc-500">{formatDate(n.createdAt)}</p>
                   </div>
                   {!n.read && (

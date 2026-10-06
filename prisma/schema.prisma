@@ -179,6 +179,20 @@ enum NotificationType {
   CORRECTION_REQUESTED
   MINISTRY_ACTION_TAKEN
   SHIPMENT_CLEARED
+  FOLLOW_UP_DUE
+  DOCUMENT_EXPIRING
+  TASK_OVERDUE
+  JOB_OVERDUE
+}
+
+// A submission to a ministry / government office / immigration office.
+enum SubmissionStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  INFO_REQUIRED
+  APPROVED
+  REJECTED
+  WITHDRAWN
 }
 
 // ---------------------------------------------------------------------------
@@ -308,6 +322,9 @@ model User {
   assignedTasks           JobTask[]        @relation("JobTaskAssignee")
   receivedJobDocuments    JobDocument[]    @relation("JobDocumentReceivedBy")
   auditLogs               AuditLog[]
+  officerSubmissions      JobSubmission[]  @relation("SubmissionOfficer")
+  createdSubmissions      JobSubmission[]  @relation("SubmissionCreatedBy")
+  jobFollowUps            JobFollowUp[]
 
   @@map("users")
 }
@@ -896,6 +913,10 @@ model Notification {
   type       NotificationType
   message    String
   shipmentId String?
+  jobId      String?
+  // Set on automatic reminders so the same reminder is never sent twice
+  // (e.g. "FU:<submissionId>:2026-10-06", "EXP:<documentId>:7").
+  dedupeKey  String?          @unique
   read       Boolean          @default(false)
   createdAt  DateTime         @default(now())
 
@@ -1043,6 +1064,7 @@ model Job {
   stages       JobStage[]
   tasks        JobTask[]
   documents    JobDocument[]
+  submissions  JobSubmission[]
   expenses     Expense[]
   invoiceItems InvoiceItem[]
 
@@ -1095,17 +1117,21 @@ model JobTask {
 // Document checklist item. Received documents may carry an uploaded file,
 // or be recorded as received on paper.
 model JobDocument {
-  id         String    @id @default(cuid())
-  name       String
-  required   Boolean   @default(true)
-  isOutput   Boolean   @default(false)
-  received   Boolean   @default(false)
-  receivedAt DateTime?
-  fileUrl    String?
-  fileName   String?
-  reference  String?
-  expiryDate DateTime?
-  note       String?
+  id           String    @id @default(cuid())
+  name         String
+  required     Boolean   @default(true)
+  isOutput     Boolean   @default(false)
+  received     Boolean   @default(false)
+  receivedAt   DateTime?
+  fileUrl      String?
+  fileName     String?
+  reference    String?
+  expiryDate   DateTime?
+  note         String?
+  // A manager can waive a document with a recorded reason -- e.g. no
+  // certificate is issued because the ministry rejected the application.
+  waived       Boolean   @default(false)
+  waivedReason String?
 
   job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
   jobId String
@@ -1150,4 +1176,84 @@ model DocumentCounter {
   value BigInt @default(0)
 
   @@map("document_counters")
+}
+
+// Government agency directory (ministries, departments, immigration and
+// tax offices) that case submissions are made to.
+model GovernmentAgency {
+  id                    String   @id @default(cuid())
+  name                  String
+  department            String?
+  office                String?
+  contactName           String?
+  contactPhone          String?
+  contactEmail          String?
+  location              String?
+  // Services handled there, e.g. "Tax exemption certificates".
+  services              String?
+  referenceRequirements String?
+  notes                 String?
+  // Default days until the first / next follow-up after a submission.
+  followUpDays          Int      @default(7)
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  submissions JobSubmission[]
+
+  @@map("government_agencies")
+}
+
+// One submission of a case to an agency. Every follow-up is recorded
+// against it, and an open submission always carries its next follow-up date.
+model JobSubmission {
+  id                 String           @id @default(cuid())
+  reference          String?
+  submittedAt        DateTime
+  documentsSubmitted String[]
+  status             SubmissionStatus @default(SUBMITTED)
+  response           String?
+  respondedAt        DateTime?
+  nextAction         String?
+  nextFollowUpAt     DateTime?
+  notes              String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId String
+
+  agency   GovernmentAgency @relation(fields: [agencyId], references: [id])
+  agencyId String
+
+  // Staff member responsible for this submission at the agency.
+  officer   User?   @relation("SubmissionOfficer", fields: [officerId], references: [id])
+  officerId String?
+
+  createdBy   User?   @relation("SubmissionCreatedBy", fields: [createdById], references: [id])
+  createdById String?
+
+  followUps JobFollowUp[]
+
+  @@index([jobId])
+  @@index([status, nextFollowUpAt])
+  @@map("job_submissions")
+}
+
+model JobFollowUp {
+  id             String    @id @default(cuid())
+  followedUpAt   DateTime
+  contact        String?
+  outcome        String
+  nextAction     String?
+  nextFollowUpAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  submission   JobSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submissionId String
+
+  by   User?   @relation(fields: [byId], references: [id])
+  byId String?
+
+  @@map("job_follow_ups")
 }

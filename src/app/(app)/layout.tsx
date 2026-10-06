@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import Nav from "@/components/Nav";
 import SignOutButton from "@/components/SignOutButton";
 import MobileMenu from "@/components/MobileMenu";
+import { runDailyReminders } from "@/lib/reminders";
 
 export default async function AppLayout({
   children,
@@ -14,6 +15,17 @@ export default async function AppLayout({
   const session = await auth();
   if (!session?.user) {
     redirect("/login");
+  }
+
+  // Automatic daily reminders (follow-ups, expiring documents, overdue
+  // tasks/jobs). Runs at most once per day across all users; a failure here
+  // must never stop the page from loading.
+  if (["ADMIN", "SUPERVISOR", "STAFF"].includes(session.user.role)) {
+    try {
+      await runDailyReminders();
+    } catch (error) {
+      console.error("[reminders]", error);
+    }
   }
 
   const unreadCount = await prisma.notification.count({

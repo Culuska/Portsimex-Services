@@ -17,6 +17,11 @@ import {
   slaState,
 } from "@/lib/job-rules";
 import { parseFields, SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
+import { activeAgencies } from "@/lib/agencies";
+import { caseStatusLabel, deriveCaseStatus } from "@/lib/case-status";
+import { expiryState } from "@/lib/reminder-rules";
+import SubmissionsCard from "./SubmissionsCard";
+import { unwaiveDocumentAction, waiveDocumentAction } from "../case-actions";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import SimpleActionButton from "@/components/SimpleActionButton";
 import ActionForm, { fieldClass } from "@/components/ActionForm";
@@ -55,12 +60,17 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       stages: { orderBy: { position: "asc" }, include: { completedBy: true } },
       documents: { orderBy: [{ isOutput: "asc" }, { required: "desc" }, { name: "asc" }], include: { receivedBy: true } },
       tasks: { orderBy: [{ status: "asc" }, { dueDate: { sort: "asc", nulls: "last" } }], include: { assignee: true } },
+      submissions: {
+        orderBy: { submittedAt: "desc" },
+        include: { agency: true, officer: true, followUps: { orderBy: { followedUpAt: "desc" }, include: { by: true } } },
+      },
       ...jobFinanceSelect,
     },
   });
   if (!job) notFound();
 
-  const [costRows, lineRows, users, draftInvoices, shipments, history] = await Promise.all([
+  const isCase = job.service.category === "GOVERNMENT_TAX" || job.service.category === "IMMIGRATION" || job.submissions.length > 0;
+  const [costRows, lineRows, users, draftInvoices, shipments, history, agencies] = await Promise.all([
     prisma.expense.findMany({
       where: { jobId: id },
       orderBy: { incurredAt: "desc" },
@@ -71,7 +81,12 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
     prisma.invoice.findMany({ where: { clientId: job.clientId, status: "DRAFT" }, orderBy: { createdAt: "desc" }, select: { id: true, invoiceNumber: true } }),
     prisma.shipment.findMany({ where: { clientId: job.clientId }, orderBy: { createdAt: "desc" }, select: { id: true, reference: true } }),
     prisma.auditLog.findMany({ where: { jobId: id }, orderBy: { createdAt: "desc" }, take: 50 }),
+    isCase ? activeAgencies() : Promise.resolve([]),
   ]);
+  const caseKind = job.service.category === "IMMIGRATION" ? "IMMIGRATION" : job.service.jobPrefix === "TAX" ? "TAX" : "GOVERNMENT";
+  const caseStatus = isCase
+    ? deriveCaseStatus({ jobStatus: job.status, docs: job.documents, stages: job.stages, latestSubmission: job.submissions[0] ?? null })
+    : null;
 
   const isManager = isFullAccessRole(session.user.role);
   const fin = financialsOf(job);
@@ -116,6 +131,11 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         description={`${job.title} · ${job.service.name} (${SERVICE_CATEGORY_LABELS[job.service.category]})`}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            {caseStatus && (
+              <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
+                Case: {caseStatusLabel(caseStatus, caseKind)}
+              </span>
+            )}
             <Badge status={job.priority} />
             {sla !== "NO_SLA" && <Badge status={sla} />}
             <Badge status={job.status} />
@@ -231,11 +251,17 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="text-sm text-zinc-900 dark:text-zinc-50">
-                        <span className={d.received ? "text-emerald-600" : d.required ? "text-red-500" : "text-zinc-400"}>{d.received ? "✓" : "○"}</span>{" "}
+                        <span className={d.received ? "text-emerald-600" : d.waived ? "text-zinc-400" : d.required ? "text-red-500" : "text-zinc-400"}>{d.received ? "✓" : d.waived ? "–" : "○"}</span>{" "}
                         {d.name}
                         {d.isOutput && <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">OFFICIAL OUTPUT</span>}
                         {!d.required && <span className="ml-2 text-xs text-zinc-400">optional</span>}
+                        {d.received && d.expiryDate && expiryState(d.expiryDate) !== "VALID" && (
+                          <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold ${expiryState(d.expiryDate) === "EXPIRED" ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"}`}>
+                            {expiryState(d.expiryDate) === "EXPIRED" ? "EXPIRED" : "EXPIRES SOON"}
+                          </span>
+                        )}
                       </p>
+                      {d.waived && <p className="text-xs text-zinc-500">Waived by a manager: {d.waivedReason}</p>}
                       {d.received && (
                         <p className="text-xs text-zinc-500">
                           Received {formatDate(d.receivedAt)}
@@ -254,7 +280,20 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                     {(active || job.status === "COMPLETED") &&
                       (d.received ? (
                         active && <SimpleActionButton action={unreceiveDocumentAction.bind(null, job.id, d.id)} label="Undo" className={btnSmall} />
+                      ) : d.waived ? (
+                        active && isManager && <SimpleActionButton action={unwaiveDocumentAction.bind(null, job.id, d.id)} label="Remove waiver" className={btnSmall} />
                       ) : (
+                        <div className="flex items-start gap-2">
+                        {active && isManager && (
+                          <details>
+                            <summary className={`${btnSmall} cursor-pointer list-none`}>Waive…</summary>
+                            <div className="mt-2 w-64">
+                              <ActionForm action={waiveDocumentAction.bind(null, job.id, d.id)} submitLabel="Waive document" confirmMessage={`Waive "${d.name}"?`}>
+                                <input name="reason" required placeholder="Reason (e.g. application rejected)" className={fieldClass} />
+                              </ActionForm>
+                            </div>
+                          </details>
+                        )}
                         <details>
                           <summary className={`${btnSmall} cursor-pointer list-none`}>Mark received…</summary>
                           <div className="mt-2 w-72">
@@ -265,6 +304,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                             </ActionForm>
                           </div>
                         </details>
+                        </div>
                       ))}
                   </div>
                 </li>
@@ -279,6 +319,19 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
               </div>
             )}
           </Card>
+
+          {isCase && (
+            <SubmissionsCard
+              jobId={job.id}
+              active={active}
+              docsComplete={missingDocs.length === 0}
+              submissions={job.submissions}
+              agencies={agencies}
+              users={users}
+              receivedDocs={job.documents.filter((d) => d.received && !d.isOutput).map((d) => d.name)}
+              defaultOfficerId={job.responsibleId}
+            />
+          )}
 
           {/* Tasks */}
           <Card>

@@ -30,7 +30,7 @@ export default async function DashboardPage() {
   const today = new Date(new Date().setHours(0, 0, 0, 0));
   const yearStart = new Date(today.getFullYear(), 0, 1);
 
-  const [activeJobs, myTasks, awaitingRequests, pendingExpenses, pendingPRs, invoices, balances, activeShipments, yearJobs] = await Promise.all([
+  const [activeJobs, myTasks, awaitingRequests, pendingExpenses, pendingPRs, invoices, balances, activeShipments, yearJobs, followUpsDue, docsExpiring] = await Promise.all([
     prisma.job.findMany({
       where: { status: { in: ["OPEN", "IN_PROGRESS", "WAITING"] } },
       include: { client: true, service: true, responsible: true, documents: true },
@@ -51,6 +51,16 @@ export default async function DashboardPage() {
     prisma.job.findMany({
       where: { status: { not: "CANCELLED" }, startDate: { gte: yearStart } },
       include: { service: true, client: true, ...jobFinanceSelect },
+    }),
+    prisma.jobSubmission.count({
+      where: {
+        status: { in: ["SUBMITTED", "UNDER_REVIEW", "INFO_REQUIRED"] },
+        nextFollowUpAt: { lt: new Date(today.getTime() + 86_400_000) },
+        job: { status: { notIn: ["CLOSED", "CANCELLED"] } },
+      },
+    }),
+    prisma.jobDocument.count({
+      where: { received: true, expiryDate: { not: null, lt: new Date(today.getTime() + 31 * 86_400_000) }, job: { status: { not: "CANCELLED" } } },
     }),
   ]);
 
@@ -90,12 +100,14 @@ export default async function DashboardPage() {
         <Tile href="/jobs" label="Pending documents" value={docsPending.length} tone={docsPending.length ? "amber" : undefined} />
         <Tile href="/service-requests?f=approval" label="Requests to approve" value={awaitingRequests.length} />
         <Tile href="/shipments" label="Active shipments" value={activeShipments} />
-        <Tile href="/jobs?cat=GOVERNMENT_TAX" label="Tax / government cases" value={countCat("GOVERNMENT_TAX")} />
-        <Tile href="/jobs?cat=IMMIGRATION" label="Immigration cases" value={countCat("IMMIGRATION")} />
+        <Tile href="/cases?t=tax" label="Tax / government cases" value={countCat("GOVERNMENT_TAX")} />
+        <Tile href="/cases?t=immigration" label="Immigration cases" value={countCat("IMMIGRATION")} />
         <Tile href="/jobs?cat=VEHICLE" label="Active rentals" value={countCat("VEHICLE")} />
         <Tile href="/jobs?cat=COMMUNICATION" label="Communication requests" value={countCat("COMMUNICATION")} />
         <Tile href="/jobs?cat=LOGISTICS" label="Logistics jobs" value={countCat("LOGISTICS")} />
         <Tile href="/jobs?cat=TRANSPORT" label="Transport jobs" value={countCat("TRANSPORT")} />
+        <Tile href="/reminders" label="Follow-ups due" value={followUpsDue} tone={followUpsDue ? "red" : undefined} />
+        <Tile href="/reminders" label="Documents expiring (30d)" value={docsExpiring} tone={docsExpiring ? "amber" : undefined} />
       </div>
 
       {isManager && (

@@ -34,7 +34,12 @@ export default function ActionForm({
   const submitted = useRef(false);
 
   useEffect(() => {
-    if (!pending && submitted.current && !state.error && !keepValues) ref.current?.reset();
+    if (!pending && submitted.current && !state.error) {
+      if (!keepValues) ref.current?.reset();
+      // Forms living in a collapsible panel ("Record follow-up…") close
+      // once they've done their job.
+      ref.current?.closest("details")?.removeAttribute("open");
+    }
     if (!pending) submitted.current = false;
   }, [pending, state, keepValues]);
 

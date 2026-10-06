@@ -9,6 +9,8 @@ const opsLinks = [
   { href: "/", label: "Dashboard" },
   { href: "/service-requests", label: "Service Requests" },
   { href: "/jobs", label: "Jobs / Cases" },
+  { href: "/cases", label: "Tax & Immigration Cases" },
+  { href: "/reminders", label: "Follow-ups & Alerts" },
   { href: "/clients", label: "Clients" },
   { href: "/quotes", label: "Quotes" },
   { href: "/invoices", label: "Invoices" },
@@ -16,6 +18,7 @@ const opsLinks = [
   { href: "/purchase-requests", label: "Purchase Requests" },
   { href: "/shipments", label: "Shipments" },
   { href: "/vendors", label: "Vendors" },
+  { href: "/agencies", label: "Government Agencies" },
 ];
 
 const adminExtraLinks = [

@@ -7,7 +7,7 @@ export type JobStatus = "OPEN" | "IN_PROGRESS" | "WAITING" | "COMPLETED" | "CLOS
 export type StageStatus = "PENDING" | "IN_PROGRESS" | "DONE" | "SKIPPED";
 
 type StageLike = { id: string; position: number; name: string; status: StageStatus; requiresDocuments: boolean };
-type DocLike = { name: string; required: boolean; isOutput: boolean; received: boolean };
+type DocLike = { name: string; required: boolean; isOutput: boolean; received: boolean; waived?: boolean };
 
 export const ACTIVE_JOB_STATUSES: JobStatus[] = ["OPEN", "IN_PROGRESS", "WAITING"];
 
@@ -40,12 +40,12 @@ function label(status: string) {
 
 /** Required supporting documents still missing (output documents excluded -- they arrive at the end). */
 export function missingRequiredDocuments(docs: DocLike[]): DocLike[] {
-  return docs.filter((d) => d.required && !d.isOutput && !d.received);
+  return docs.filter((d) => d.required && !d.isOutput && !d.received && !d.waived);
 }
 
 /** Official output documents (certificate, POD, final visa...) not yet received. */
 export function missingOutputDocuments(docs: DocLike[]): DocLike[] {
-  return docs.filter((d) => d.required && d.isOutput && !d.received);
+  return docs.filter((d) => d.required && d.isOutput && !d.received && !d.waived);
 }
 
 export function isDocumentationComplete(docs: DocLike[]): boolean {

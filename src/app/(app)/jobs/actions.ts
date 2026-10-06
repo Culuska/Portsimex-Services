@@ -21,6 +21,8 @@ import {
   JobRuleError,
 } from "@/lib/job-rules";
 import { parseFields } from "@/lib/service-templates";
+import { dateValue, fillEmptyDetails } from "@/lib/case-details";
+import { STAGE_EVENTS, stagesToAutoComplete } from "@/lib/case-status";
 
 type State = { error: string | null };
 const ok: State = { error: null };
@@ -225,6 +227,17 @@ export async function receiveDocumentAction(jobId: string, docId: string, _prev:
   }
   const reference = String(formData.get("reference") ?? "").trim() || null;
   const expiry = String(formData.get("expiryDate") ?? "");
+  if (expiry && Number.isNaN(new Date(expiry).getTime())) return { error: "Enter a valid expiry date." };
+  // The official output's number and expiry flow into the case fields
+  // (certificate no., issued document expiry) when those are still empty.
+  const details = doc.isOutput
+    ? fillEmptyDetails(detailsOf(job.details), job.service.fields, {
+        certificateNumber: reference,
+        referenceNumber: reference,
+        expiryDate: expiry ? dateValue(new Date(expiry)) : null,
+        documentExpiry: expiry ? dateValue(new Date(expiry)) : null,
+      })
+    : null;
 
   await prisma.$transaction(async (tx) => {
     await tx.jobDocument.update({
@@ -237,8 +250,23 @@ export async function receiveDocumentAction(jobId: string, docId: string, _prev:
         expiryDate: expiry ? new Date(expiry) : doc.expiryDate,
         fileUrl: upload?.url ?? doc.fileUrl,
         fileName: upload?.fileName ?? doc.fileName,
+        waived: false,
+        waivedReason: null,
       },
     });
+    if (details) await tx.job.update({ where: { id: jobId }, data: { details: details as Prisma.InputJsonValue } });
+    if (doc.isOutput && isJobActive(job.status)) {
+      // Receiving the official output completes the collection stage.
+      const stages = await tx.jobStage.findMany({ where: { jobId } });
+      const done = stagesToAutoComplete(stages, STAGE_EVENTS.OUTPUT_RECEIVED);
+      if (done.length > 0) {
+        const now = new Date();
+        for (const s of done) await tx.jobStage.update({ where: { id: s.id }, data: { status: "DONE", completedAt: now, completedById: user.id, note: `${doc.name} received` } });
+        const last = done[done.length - 1].position;
+        const next = stages.filter((s) => s.position > last && s.status === "PENDING").sort((a, b) => a.position - b.position)[0];
+        if (next) await tx.jobStage.update({ where: { id: next.id }, data: { status: "IN_PROGRESS", startedAt: now } });
+      }
+    }
     await audit(tx, user, {
       action: "JOB_DOCUMENT_RECEIVED",
       module: "Jobs",
