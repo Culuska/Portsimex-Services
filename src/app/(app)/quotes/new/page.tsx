@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
 import QuoteForm from "../QuoteForm";
@@ -7,6 +8,7 @@ export default async function NewQuotePage({
 }: {
   searchParams: Promise<{ shipmentId?: string }>;
 }) {
+  await requirePermission("quotes.manage");
   const { shipmentId } = await searchParams;
   const [clients, shipments, purchaseRequests] = await Promise.all([
     prisma.client.findMany({

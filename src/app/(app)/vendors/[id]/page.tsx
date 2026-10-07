@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +12,7 @@ export default async function VendorDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requirePermission("vendors.manage");
   const { id } = await params;
   const vendor = await prisma.vendor.findUnique({
     where: { id },

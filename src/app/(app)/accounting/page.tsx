@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
+import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Card, EmptyState } from "@/components/ui";
 import { formatCurrency } from "@/lib/format";
@@ -27,8 +25,7 @@ const TYPE_LABELS: Record<string, string> = {
 const TYPE_ORDER = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
 
 export default async function ChartOfAccountsPage() {
-  const session = await auth();
-  if (!session || !isFullAccessRole(session.user.role)) redirect("/");
+  await requirePermission("reports.financial");
 
   // Running balances come from the account_balances SQL view (migration
   // 20260915140000), which aggregates ledger_lines per account using the

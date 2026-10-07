@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Badge, Card, PageHeader, StatCard } from "@/components/ui";
 import ActionForm, { fieldClass } from "@/components/ActionForm";
@@ -11,8 +11,7 @@ import { cancelBillAction, paySupplierBillAction } from "../../actions";
 const BILLING_LABELS: Record<string, string> = { NON_BILLABLE: "Company cost", BILLABLE: "Billable at cost", BILLABLE_WITH_MARKUP: "Billable + fee" };
 
 export default async function SupplierBillPage({ params }: { params: Promise<{ id: string }> }) {
-  const viewer = await financeViewer();
-  if (!viewer.isStaff) redirect("/");
+  const viewer = await financeViewer("finance.view", "bills.manage", "bills.pay");
   const { id } = await params;
   const bill = await prisma.supplierBill.findUnique({
     where: { id },
@@ -99,7 +98,7 @@ export default async function SupplierBillPage({ params }: { params: Promise<{ i
           </table>
           {f.awaitingApproval > 0 && !cancelled && (
             <p className="border-t border-zinc-200 px-4 py-3 text-sm text-amber-700 dark:border-zinc-800 dark:text-amber-400">
-              {f.awaitingApproval} line(s) over $500 need manager approval (open the line to approve) before this bill can be paid.
+              {f.awaitingApproval} line(s) above the approval threshold need manager approval (open the line to approve) before this bill can be paid.
             </p>
           )}
           {bill.notes && <p className="whitespace-pre-line border-t border-zinc-200 px-4 py-3 text-sm text-zinc-500 dark:border-zinc-800">{bill.notes}</p>}
@@ -153,7 +152,7 @@ export default async function SupplierBillPage({ params }: { params: Promise<{ i
             )}
           </Card>
 
-          {viewer.isManager && !cancelled && f.paid === 0 && (
+          {viewer.can("bills.manage") && !cancelled && f.paid === 0 && (
             <details className="text-sm">
               <summary className="cursor-pointer text-red-600 hover:underline">Cancel bill (entered in error)…</summary>
               <ActionForm

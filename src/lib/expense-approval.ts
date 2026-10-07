@@ -13,8 +13,10 @@ export class InvalidExpenseTransitionError extends Error {}
 export function decideExpenseStatus(
   amount: number,
   requestedStatus: "PENDING" | "PAID",
+  // Configurable under Settings; defaults to the original $500.
+  threshold: number = EXPENSE_APPROVAL_THRESHOLD,
 ): ExpenseStatus {
-  if (amount > EXPENSE_APPROVAL_THRESHOLD) {
+  if (amount > threshold) {
     return "PENDING_APPROVAL";
   }
   return requestedStatus;

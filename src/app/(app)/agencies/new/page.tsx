@@ -1,13 +1,10 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
+import { requirePermission } from "@/lib/session";
 import { PageHeader } from "@/components/ui";
 import AgencyForm from "../AgencyForm";
 import { saveAgencyAction } from "../actions";
 
 export default async function NewAgencyPage() {
-  const session = await auth();
-  if (!session || !isFullAccessRole(session.user.role)) redirect("/agencies");
+  await requirePermission("agencies.manage");
   return (
     <div>
       <PageHeader title="New government agency" />

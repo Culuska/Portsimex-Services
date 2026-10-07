@@ -8,11 +8,15 @@ import type { Role } from "@/lib/roles";
 
 export default function MobileMenu({
   role,
+  permissions,
+  fullAccess,
   userName,
   userRole,
   unreadCount,
 }: {
   role: Role;
+  permissions: string[];
+  fullAccess: boolean;
   userName?: string | null;
   userRole: string;
   unreadCount: number;
@@ -76,7 +80,7 @@ export default function MobileMenu({
                   </svg>
                 </button>
               </div>
-              <Nav role={role} onNavigate={() => setOpen(false)} />
+              <Nav role={role} permissions={permissions} fullAccess={fullAccess} onNavigate={() => setOpen(false)} />
             </div>
             <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4">
               <Link

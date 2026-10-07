@@ -1,13 +1,14 @@
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
+import { requirePermission } from "@/lib/session";
+import { hasPermission, type Grant, type Permission } from "@/lib/permission-catalog";
+import { REPORTS, type ReportKey } from "@/lib/finance-reports";
 
-/** Finance pages: managers see everything; operations staff see the day-to-day money screens only. */
-export async function financeViewer() {
-  const session = await auth();
-  const role = session?.user?.role;
-  return {
-    session,
-    isManager: !!role && isFullAccessRole(role),
-    isStaff: !!role && (isFullAccessRole(role) || role === "STAFF"),
-  };
+/** Finance pages: the page's permission, plus helpers to show only what this user may do. */
+export async function financeViewer(...anyOf: Permission[]) {
+  const me = await requirePermission(...anyOf);
+  const can = (p: Permission) => hasPermission(me.grant, p);
+  return { me, can };
+}
+
+export function canSeeReport(grant: Grant, key: ReportKey) {
+  return REPORTS[key].permissions.some((p) => hasPermission(grant, p));
 }

@@ -4,8 +4,8 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireStaff } from "@/lib/session";
-import { isFullAccessRole } from "@/lib/roles";
+import { requireJobAccess } from "@/lib/session";
+import { hasPermission } from "@/lib/permission-catalog";
 import { audit } from "@/lib/audit";
 import { uploadJobFile } from "@/lib/blob";
 import { nextInvoiceNumber } from "@/lib/numbering";
@@ -55,8 +55,8 @@ const MOVE_TARGET = {
 const MANAGER_MOVES: Move[] = ["CLOSE", "REOPEN"];
 
 export async function moveJobAction(jobId: string, move: Move): Promise<State> {
-  const user = await requireStaff();
-  if (MANAGER_MOVES.includes(move) && !isFullAccessRole(user.role)) return { error: "Only a manager can do that." };
+  const user = await requireJobAccess(jobId, "jobs.manage");
+  if (MANAGER_MOVES.includes(move) && !hasPermission(user.grant, "jobs.supervise")) return { error: "Only a manager can do that." };
   const job = await prisma.job.findUniqueOrThrow({
     where: { id: jobId },
     include: { stages: true, documents: true, service: true, ...jobFinanceSelect },
@@ -118,8 +118,7 @@ export async function moveJobAction(jobId: string, move: Move): Promise<State> {
 const cancelSchema = z.object({ reason: z.string().trim().min(3, "Give a reason for cancelling") });
 
 export async function cancelJobAction(jobId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
-  if (!isFullAccessRole(user.role)) return { error: "Only a manager can cancel a job." };
+  const user = await requireJobAccess(jobId, "jobs.supervise");
   const parsed = cancelSchema.safeParse({ reason: formData.get("reason") ?? "" });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const job = await prisma.job.findUniqueOrThrow({ where: { id: jobId }, include: jobFinanceSelect });
@@ -153,7 +152,7 @@ export async function cancelJobAction(jobId: string, _prev: State, formData: For
 // ---------------------------------------------------------------------------
 
 export async function completeStageAction(jobId: string, stageId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requireJobAccess(jobId, "jobs.manage");
   const job = await loadJob(jobId);
   const stage = job.stages.find((s) => s.id === stageId);
   if (!stage) return { error: "Stage not found." };
@@ -166,8 +165,7 @@ export async function completeStageAction(jobId: string, stageId: string, _prev:
 }
 
 export async function skipStageAction(jobId: string, stageId: string): Promise<State> {
-  const user = await requireStaff();
-  if (!isFullAccessRole(user.role)) return { error: "Only a manager can skip a stage." };
+  const user = await requireJobAccess(jobId, "jobs.supervise");
   const job = await loadJob(jobId);
   const stage = job.stages.find((s) => s.id === stageId);
   if (!stage) return { error: "Stage not found." };
@@ -209,7 +207,7 @@ async function advanceStage(
 // ---------------------------------------------------------------------------
 
 export async function receiveDocumentAction(jobId: string, docId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requireJobAccess(jobId, "jobs.manage");
   const job = await loadJob(jobId);
   const doc = job.documents.find((d) => d.id === docId);
   if (!doc) return { error: "Document not found." };
@@ -282,7 +280,7 @@ export async function receiveDocumentAction(jobId: string, docId: string, _prev:
 }
 
 export async function unreceiveDocumentAction(jobId: string, docId: string): Promise<State> {
-  const user = await requireStaff();
+  const user = await requireJobAccess(jobId, "jobs.manage");
   const job = await loadJob(jobId);
   const doc = job.documents.find((d) => d.id === docId);
   if (!doc) return { error: "Document not found." };
@@ -306,7 +304,7 @@ export async function unreceiveDocumentAction(jobId: string, docId: string): Pro
 const addDocSchema = z.object({ name: z.string().trim().min(1, "Document name is required"), required: z.boolean() });
 
 export async function addDocumentAction(jobId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requireJobAccess(jobId, "jobs.manage");
   const parsed = addDocSchema.safeParse({ name: formData.get("name") ?? "", required: formData.get("required") === "on" });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const job = await loadJob(jobId);
@@ -339,7 +337,7 @@ const taskSchema = z.object({
 });
 
 export async function addTaskAction(jobId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requireJobAccess(jobId, "jobs.manage");
   const parsed = taskSchema.safeParse({
     title: formData.get("title") ?? "",
     assigneeId: formData.get("assigneeId") ?? "",
@@ -374,7 +372,7 @@ export async function addTaskAction(jobId: string, _prev: State, formData: FormD
 }
 
 export async function setTaskStatusAction(jobId: string, taskId: string, status: "TODO" | "IN_PROGRESS" | "DONE"): Promise<State> {
-  const user = await requireStaff();
+  const user = await requireJobAccess(jobId, "jobs.manage");
   const task = await prisma.jobTask.findUniqueOrThrow({ where: { id: taskId }, include: { job: true } });
   if (task.jobId !== jobId) return { error: "Task not found." };
   if (task.job.status === "CLOSED" || task.job.status === "CANCELLED") return { error: `The job is ${task.job.status.toLowerCase()}.` };
@@ -412,7 +410,7 @@ const coreSchema = z.object({
 });
 
 export async function updateJobAction(jobId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requireJobAccess(jobId, "jobs.manage");
   const parsed = coreSchema.safeParse({
     title: formData.get("title") ?? "",
     responsibleId: formData.get("responsibleId") ?? "",
@@ -491,7 +489,7 @@ const billSchema = z.object({
 });
 
 export async function invoiceJobAction(jobId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requireJobAccess(jobId, "invoices.manage");
   const parsed = billSchema.safeParse({
     target: formData.get("target") ?? "new",
     expenseIds: formData.getAll("expenseIds"),

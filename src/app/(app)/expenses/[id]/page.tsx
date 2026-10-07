@@ -1,13 +1,14 @@
+import { canApproveAmount } from "@/lib/permission-catalog";
+import { requirePermission } from "@/lib/session";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { attributableJobs } from "@/lib/jobs";
 import { isExpenseBilled, type InvoiceStatus } from "@/lib/job-finance";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
 import { PageHeader, Card, Badge } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { activeMoneyAccounts, PAYMENT_METHOD_LABELS } from "@/lib/finance";
+import { getSettings } from "@/lib/settings";
 import { fieldClass } from "@/components/ActionForm";
 import ExpenseForm from "../ExpenseForm";
 import RejectExpenseForm from "../RejectExpenseForm";
@@ -25,7 +26,7 @@ export default async function ExpenseDetailPage({
 }) {
   const { id } = await params;
   const [session, expense, vendors, shipments, categories, moneyAccounts] = await Promise.all([
-    auth(),
+    requirePermission("expenses.view"),
     prisma.expense.findUnique({
       where: { id },
       include: { category: true, approvedBy: true, job: true, invoiceItem: { include: { invoice: true } }, paidFrom: true, supplierBill: true },
@@ -43,7 +44,9 @@ export default async function ExpenseDetailPage({
   const jobs = await attributableJobs(prisma, undefined, expense.jobId);
   const billed = isExpenseBilled((expense.invoiceItem?.invoice.status as InvoiceStatus | undefined) ?? null);
 
-  const isAdmin = !!session && isFullAccessRole(session.user.role);
+  const settings = await getSettings();
+  // Shown the approve / reject buttons only within this user's approval limit.
+  const isAdmin = canApproveAmount(session.grant, Number(expense.amount));
   const boundUpdate = updateExpenseAction.bind(null, expense.id);
   const boundApprove = approveExpenseAction.bind(null, expense.id);
   const boundReject = rejectExpenseAction.bind(null, expense.id);
@@ -69,6 +72,7 @@ export default async function ExpenseDetailPage({
             lockAmount
             lockStatus={expense.status !== "PENDING" || !!expense.supplierBillId}
             moneyAccounts={moneyAccounts}
+            approvalThreshold={settings.expenseApprovalThreshold}
             defaultValues={{
               description: expense.description,
               amount: expense.amount.toString(),
@@ -120,7 +124,7 @@ export default async function ExpenseDetailPage({
             {expense.status === "PENDING_APPROVAL" && (
               <>
                 <p className="text-sm text-zinc-600 dark:text-zinc-300">
-                  {formatCurrency(expense.amount.toString())} exceeds the $500 auto-pay threshold and needs
+                  {formatCurrency(expense.amount.toString())} exceeds the {formatCurrency(settings.expenseApprovalThreshold)} approval threshold and needs
                   managerial approval before it can be paid.
                 </p>
                 {isAdmin ? (
@@ -136,7 +140,7 @@ export default async function ExpenseDetailPage({
                     <RejectExpenseForm action={boundReject} />
                   </div>
                 ) : (
-                  <p className="text-sm text-zinc-500">Waiting on an admin to approve or reject.</p>
+                  <p className="text-sm text-zinc-500">Waiting for a manager whose approval limit covers this amount.</p>
                 )}
               </>
             )}

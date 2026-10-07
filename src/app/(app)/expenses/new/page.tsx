@@ -1,6 +1,8 @@
+import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { attributableJobs } from "@/lib/jobs";
 import { activeMoneyAccounts } from "@/lib/finance";
+import { getSettings } from "@/lib/settings";
 import { PageHeader } from "@/components/ui";
 import ExpenseForm from "../ExpenseForm";
 import { createExpenseAction } from "../actions";
@@ -10,6 +12,7 @@ export default async function NewExpensePage({
 }: {
   searchParams: Promise<{ shipmentId?: string; jobId?: string }>;
 }) {
+  await requirePermission("expenses.create");
   const { shipmentId, jobId } = await searchParams;
   const [vendors, shipments, categories, jobs, moneyAccounts] = await Promise.all([
     prisma.vendor.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -33,6 +36,7 @@ export default async function NewExpensePage({
         jobs={jobs}
         moneyAccounts={moneyAccounts}
         allowReceipt
+        approvalThreshold={(await getSettings()).expenseApprovalThreshold}
         defaultValues={
           shipmentId || jobId
             ? {

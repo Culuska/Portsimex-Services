@@ -1,8 +1,6 @@
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
 import type { Prisma } from "@/generated/prisma/client";
-import { isFullAccessRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 
@@ -11,8 +9,7 @@ function stamp(d: Date) {
 }
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ module?: string; q?: string; page?: string }> }) {
-  const session = await auth();
-  if (!session || !isFullAccessRole(session.user.role)) redirect("/");
+  await requirePermission("audit.view");
   const { module, q, page = "1" } = await searchParams;
   const p = Math.max(1, Number(page) || 1);
   const where: Prisma.AuditLogWhereInput = {

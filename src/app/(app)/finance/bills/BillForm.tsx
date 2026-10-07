@@ -98,7 +98,7 @@ export default function BillForm({
           + Add line
         </button>
         <p className="text-sm font-medium">Bill total: {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(total)}</p>
-        <p className="text-xs text-zinc-500">Lines over $500 need manager approval before the bill can be paid.</p>
+        <p className="text-xs text-zinc-500">Lines above the expense approval threshold need manager approval before the bill can be paid.</p>
       </div>
 
       <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">

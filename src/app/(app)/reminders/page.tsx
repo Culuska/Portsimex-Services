@@ -1,7 +1,6 @@
+import { hasPermission } from "@/lib/permission-catalog";
+import { jobScopeWhere, requirePermission } from "@/lib/session";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 import { detailsOf } from "@/lib/jobs";
@@ -18,8 +17,9 @@ function when(days: number) {
 }
 
 export default async function RemindersPage({ searchParams }: { searchParams: Promise<{ mine?: string }> }) {
-  const session = await auth();
-  if (!session || !["ADMIN", "SUPERVISOR", "STAFF"].includes(session.user.role)) redirect("/");
+  const viewer = await requirePermission("jobs.view");
+  const session = { user: viewer };
+  const scope = jobScopeWhere(viewer);
   const { mine } = await searchParams;
   const me = session.user.id;
   const now = new Date();
@@ -31,7 +31,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
       where: {
         status: { in: ["SUBMITTED", "UNDER_REVIEW", "INFO_REQUIRED"] },
         nextFollowUpAt: { lt: horizon },
-        job: { status: { notIn: ["CLOSED", "CANCELLED"] } },
+        job: { status: { notIn: ["CLOSED", "CANCELLED"] }, ...scope },
         ...(mine ? { OR: [{ officerId: me }, { job: { responsibleId: me } }] } : {}),
       },
       orderBy: { nextFollowUpAt: "asc" },
@@ -41,20 +41,20 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
       where: {
         received: true,
         expiryDate: { not: null, lt: new Date(now.getTime() + 61 * 86_400_000) },
-        job: { status: { not: "CANCELLED" }, ...(mine ? { responsibleId: me } : {}) },
+        job: { status: { not: "CANCELLED" }, ...scope, ...(mine ? { responsibleId: me } : {}) },
       },
       orderBy: { expiryDate: "asc" },
       include: { job: { include: { client: true } } },
     }),
     prisma.job.findMany({
-      where: { status: { not: "CANCELLED" }, ...(mine ? { responsibleId: me } : {}) },
+      where: { status: { not: "CANCELLED" }, ...scope, ...(mine ? { responsibleId: me } : {}) },
       select: { id: true, jobNumber: true, details: true, client: { select: { name: true } }, service: { select: { fields: true } } },
     }),
     prisma.jobTask.findMany({
       where: {
         status: { in: ["TODO", "IN_PROGRESS"] },
         dueDate: { lt: today },
-        job: { status: { in: ["OPEN", "IN_PROGRESS", "WAITING", "COMPLETED"] } },
+        job: { status: { in: ["OPEN", "IN_PROGRESS", "WAITING", "COMPLETED"] }, ...scope },
         ...(mine ? { assigneeId: me } : {}),
       },
       orderBy: { dueDate: "asc" },
@@ -90,7 +90,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
         action={
           <div className="flex items-center gap-3">
             <Link href={mine ? "/reminders" : "/reminders?mine=1"} className="text-sm text-brand-600 hover:underline">{mine ? "Show everyone's" : "Show only mine"}</Link>
-            {isFullAccessRole(session.user.role) && <SimpleActionButton action={sendRemindersNowAction} label="Send reminders now" />}
+            {hasPermission(viewer.grant, "jobs.supervise") && <SimpleActionButton action={sendRemindersNowAction} label="Send reminders now" />}
           </div>
         }
       />

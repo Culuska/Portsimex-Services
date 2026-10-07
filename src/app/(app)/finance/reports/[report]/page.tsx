@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
 import ReportView from "@/components/ReportView";
@@ -7,7 +7,7 @@ import ReportToolbar from "@/components/ReportToolbar";
 import { fieldClass } from "@/components/ActionForm";
 import { buildReport, defaultPeriod, isReportKey, REPORTS } from "@/lib/finance-reports";
 import { endOfDay, isoDate, parseDay } from "@/lib/finance";
-import { financeViewer } from "@/lib/finance-access";
+import { canSeeReport, financeViewer } from "@/lib/finance-access";
 
 type Search = Record<string, string | string[] | undefined>;
 
@@ -21,8 +21,7 @@ export default async function FinanceReportPage({
   const { report: key } = await params;
   if (!isReportKey(key)) notFound();
   const meta = REPORTS[key];
-  const viewer = await financeViewer();
-  if (!(viewer.isManager || (meta.staff && viewer.isStaff))) redirect("/");
+  const viewer = await financeViewer(...meta.permissions);
 
   const sp = await searchParams;
   const def = defaultPeriod();
@@ -33,7 +32,7 @@ export default async function FinanceReportPage({
   const clients = key === "statement" ? await prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }) : [];
 
   const query = new URLSearchParams({ ...(meta.filter === "period" ? { from: isoDate(from) } : {}), to: isoDate(to), ...(clientId ? { client: clientId } : {}) });
-  const visible = (Object.keys(REPORTS) as (keyof typeof REPORTS)[]).filter((k) => viewer.isManager || REPORTS[k].staff);
+  const visible = (Object.keys(REPORTS) as (keyof typeof REPORTS)[]).filter((k) => canSeeReport(viewer.me.grant, k));
 
   return (
     <div>

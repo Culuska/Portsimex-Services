@@ -4,8 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireStaff } from "@/lib/session";
-import { isFullAccessRole } from "@/lib/roles";
+import { requireJobAccess } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { detailsOf } from "@/lib/jobs";
 import { isJobActive, missingRequiredDocuments } from "@/lib/job-rules";
@@ -69,7 +68,7 @@ const submissionSchema = z.object({
 });
 
 export async function recordSubmissionAction(jobId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requireJobAccess(jobId, "cases.manage");
   const parsed = submissionSchema.safeParse({
     agencyId: formData.get("agencyId") ?? "",
     reference: formData.get("reference") ?? "",
@@ -142,7 +141,7 @@ const statusSchema = z.object({
 });
 
 export async function updateSubmissionStatusAction(jobId: string, submissionId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requireJobAccess(jobId, "cases.manage");
   const parsed = statusSchema.safeParse({
     status: formData.get("status"),
     response: formData.get("response") ?? "",
@@ -207,7 +206,7 @@ const followUpSchema = z.object({
 });
 
 export async function recordFollowUpAction(jobId: string, submissionId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requireJobAccess(jobId, "cases.manage");
   const parsed = followUpSchema.safeParse({
     outcome: formData.get("outcome") ?? "",
     contact: formData.get("contact") ?? "",
@@ -257,8 +256,7 @@ export async function recordFollowUpAction(jobId: string, submissionId: string, 
 const waiveSchema = z.object({ reason: z.string().trim().min(5, "Give the reason for waiving this document") });
 
 export async function waiveDocumentAction(jobId: string, docId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
-  if (!isFullAccessRole(user.role)) return { error: "Only a manager can waive a document." };
+  const user = await requireJobAccess(jobId, "jobs.supervise");
   const parsed = waiveSchema.safeParse({ reason: formData.get("reason") ?? "" });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const doc = await prisma.jobDocument.findUniqueOrThrow({ where: { id: docId }, include: { job: true } });
@@ -282,8 +280,7 @@ export async function waiveDocumentAction(jobId: string, docId: string, _prev: S
 }
 
 export async function unwaiveDocumentAction(jobId: string, docId: string): Promise<State> {
-  const user = await requireStaff();
-  if (!isFullAccessRole(user.role)) return { error: "Only a manager can do that." };
+  const user = await requireJobAccess(jobId, "jobs.supervise");
   const doc = await prisma.jobDocument.findUniqueOrThrow({ where: { id: docId }, include: { job: true } });
   if (doc.jobId !== jobId) return { error: "Document not found." };
   if (!isJobActive(doc.job.status)) return { error: `The job is ${doc.job.status.toLowerCase()}.` };

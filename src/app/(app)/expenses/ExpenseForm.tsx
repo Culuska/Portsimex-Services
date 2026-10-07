@@ -43,6 +43,7 @@ export default function ExpenseForm({
   lockBilling = false,
   moneyAccounts = [],
   allowReceipt = false,
+  approvalThreshold = 500,
 }: {
   action: ExpenseFormAction;
   vendors: { id: string; name: string }[];
@@ -74,6 +75,7 @@ export default function ExpenseForm({
   // Cash / bank accounts the expense can be paid from.
   moneyAccounts?: { id: string; name: string }[];
   allowReceipt?: boolean;
+  approvalThreshold?: number;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null });
   const [billingType, setBillingType] = useState(defaultValues?.billingType ?? "");
@@ -270,7 +272,7 @@ export default function ExpenseForm({
             <option value="PAID">Paid</option>
           </select>
           <p className="text-xs text-zinc-500">
-            Amounts over $500 are automatically routed to approval instead of Paid.
+            Amounts over ${approvalThreshold.toLocaleString("en-US")} are automatically routed to approval instead of Paid.
           </p>
         </div>
       )}

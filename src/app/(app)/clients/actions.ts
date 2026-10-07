@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireStaff } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { SERVICE_TYPES, RATE_BASED_SERVICE_TYPES, AGREEMENT_TYPES } from "@/lib/services";
 import { deriveMnemonicBase, resolveMnemonicCollision } from "@/lib/client-mnemonic";
 
@@ -75,7 +75,7 @@ export async function createClientAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireStaff();
+  await requirePermission("clients.manage");
   const parsed = parseClientForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -120,7 +120,7 @@ export async function updateClientAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireStaff();
+  await requirePermission("clients.manage");
   const parsed = parseClientForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -163,7 +163,7 @@ export async function addClientNoteAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  const user = await requireStaff();
+  const user = await requirePermission("clients.manage");
   const parsed = noteSchema.safeParse({ body: formData.get("body") });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -191,7 +191,7 @@ export async function addFollowUpAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireStaff();
+  await requirePermission("clients.manage");
   const parsed = followUpSchema.safeParse({
     dueDate: formData.get("dueDate"),
     note: formData.get("note"),
@@ -217,7 +217,7 @@ export async function toggleFollowUpAction(
   clientId: string,
   formData: FormData,
 ) {
-  await requireStaff();
+  await requirePermission("clients.manage");
   const done = formData.get("done") === "true";
   await prisma.clientFollowUp.update({
     where: { id: followUpId },

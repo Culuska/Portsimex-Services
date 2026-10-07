@@ -1,3 +1,4 @@
+import { jobScopeWhere, requirePermission } from "@/lib/session";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -18,6 +19,7 @@ export default async function ClientDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const viewer = await requirePermission("clients.view");
   const { id } = await params;
   const client = await prisma.client.findUnique({
     where: { id },
@@ -26,6 +28,7 @@ export default async function ClientDetailPage({
       invoices: { orderBy: { issueDate: "desc" }, include: { items: true, payments: true } },
       serviceRequests: { orderBy: { createdAt: "desc" }, take: 20, include: { lines: { include: { service: true } } } },
       jobs: {
+        where: jobScopeWhere(viewer),
         orderBy: { createdAt: "desc" },
         include: { service: true, responsible: true, documents: { where: { received: true } }, ...jobFinanceSelect },
       },

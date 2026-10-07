@@ -1,8 +1,10 @@
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 
 export default async function ClientsPage() {
+  await requirePermission("clients.view");
   const clients = await prisma.client.findMany({
     orderBy: { name: "asc" },
     include: { _count: { select: { shipments: true, invoices: true } } },

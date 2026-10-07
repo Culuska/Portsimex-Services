@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { getCurrentUser, MFA_GUARDED } from "@/lib/session";
+import { getSettings } from "@/lib/settings";
+import { hasPermission } from "@/lib/permission-catalog";
 import { prisma } from "@/lib/prisma";
 import Nav from "@/components/Nav";
 import SignOutButton from "@/components/SignOutButton";
@@ -16,6 +19,14 @@ export default async function AppLayout({
   if (!session?.user) {
     redirect("/login");
   }
+  // The cookie alone isn't trusted: the account must still be active and
+  // the session not revoked or expired (see lib/session.ts).
+  const me = await getCurrentUser();
+  if (!me) redirect("/login?ended=1");
+  if (me.mustChangePassword) redirect("/change-password");
+  const settings = await getSettings();
+  const managesMoney = MFA_GUARDED.some((p) => hasPermission(me.grant, p));
+  const mfaNudge = settings.requireMfaForManagers && managesMoney && !me.mfaEnabled;
 
   // Automatic daily reminders (follow-ups, expiring documents, overdue
   // tasks/jobs). Runs at most once per day across all users; a failure here
@@ -37,6 +48,8 @@ export default async function AppLayout({
       <div className="print:hidden">
         <MobileMenu
           role={session.user.role}
+          permissions={me.grant.permissions}
+          fullAccess={me.grant.fullAccess}
           userName={session.user.name}
           userRole={session.user.role}
           unreadCount={unreadCount}
@@ -50,7 +63,7 @@ export default async function AppLayout({
             </p>
             <p className="text-[10px] font-medium text-zinc-400">Your World brought closer</p>
           </div>
-          <Nav role={session.user.role} />
+          <Nav role={session.user.role} permissions={me.grant.permissions} fullAccess={me.grant.fullAccess} />
         </div>
         <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 px-3">
           <Link
@@ -64,16 +77,27 @@ export default async function AppLayout({
               </span>
             )}
           </Link>
-          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-            {session.user.name}
-          </p>
-          <p className="text-xs text-zinc-500">{session.user.role}</p>
+          <Link href="/account" className="block rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">{me.name}</p>
+            <p className="text-xs text-zinc-500">{me.profileName ?? me.role} · My account</p>
+          </Link>
           <div className="mt-2">
             <SignOutButton />
           </div>
         </div>
       </aside>
-      <main className="flex-1 overflow-x-hidden p-4 sm:p-8 print:p-0">{children}</main>
+      <main className="flex-1 overflow-x-hidden p-4 sm:p-8 print:p-0">
+        {mfaNudge && (
+          <p className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 print:hidden dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            Your role can approve or move money, so two-factor login is required for those actions.{" "}
+            <Link href="/account" className="font-medium underline">
+              Set it up now
+            </Link>
+            .
+          </p>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

@@ -1,9 +1,11 @@
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 
 export default async function ExpensesPage() {
+  await requirePermission("expenses.view");
   const expenses = await prisma.expense.findMany({
     orderBy: { incurredAt: "desc" },
     include: { category: true, vendor: true, shipment: true },

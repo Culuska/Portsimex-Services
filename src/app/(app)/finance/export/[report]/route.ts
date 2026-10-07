@@ -1,14 +1,16 @@
-import { buildReport, defaultPeriod, isReportKey, REPORTS } from "@/lib/finance-reports";
+import { buildReport, defaultPeriod, isReportKey } from "@/lib/finance-reports";
 import { endOfDay, parseDay } from "@/lib/finance";
-import { financeViewer } from "@/lib/finance-access";
+import { canSeeReport } from "@/lib/finance-access";
+import { getCurrentUser } from "@/lib/session";
 import { buildXlsx, type Sheet } from "@/lib/xlsx";
 
 // Excel download of any finance report -- the same data the report page shows.
 export async function GET(request: Request, { params }: { params: Promise<{ report: string }> }) {
   const { report: key } = await params;
   if (!isReportKey(key)) return new Response("Unknown report", { status: 404 });
-  const viewer = await financeViewer();
-  if (!(viewer.isManager || (REPORTS[key].staff && viewer.isStaff))) return new Response("Forbidden", { status: 403 });
+  const me = await getCurrentUser();
+  if (!me) return new Response("Sign in first", { status: 401 });
+  if (!canSeeReport(me.grant, key)) return new Response("Forbidden", { status: 403 });
 
   const url = new URL(request.url);
   const q = (k: string) => url.searchParams.get(k) ?? undefined;

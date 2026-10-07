@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -5,6 +6,7 @@ import { invoiceBalance, invoiceGrandTotal } from "@/lib/invoices";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 
 export default async function InvoicesPage() {
+  await requirePermission("invoices.view");
   const invoices = await prisma.invoice.findMany({
     orderBy: { issueDate: "desc" },
     include: { client: true, items: true, payments: true },

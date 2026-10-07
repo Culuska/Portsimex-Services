@@ -1,7 +1,7 @@
+import { hasPermission } from "@/lib/permission-catalog";
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -29,7 +29,7 @@ export default async function QuoteDetailPage({
 }) {
   const { id } = await params;
   const [session, quote] = await Promise.all([
-    auth(),
+    requirePermission("quotes.manage"),
     prisma.quote.findUnique({
       where: { id },
       include: {
@@ -44,7 +44,7 @@ export default async function QuoteDetailPage({
 
   if (!quote) notFound();
 
-  const isAdmin = !!session && isFullAccessRole(session.user.role);
+  const isAdmin = hasPermission(session.grant, "requests.approve");
   const total = invoiceTotal(quote.items);
   const boundStatus = updateQuoteStatusAction.bind(null, quote.id);
   const boundConvert = convertQuoteToInvoiceAction.bind(null, quote.id);

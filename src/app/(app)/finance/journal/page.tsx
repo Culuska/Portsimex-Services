@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader } from "@/components/ui";
 import ActionForm, { fieldClass } from "@/components/ActionForm";
@@ -11,8 +10,7 @@ import JournalForm from "./JournalForm";
 import { createAccountAction, postJournalAction } from "../actions";
 
 export default async function JournalPage() {
-  const viewer = await financeViewer();
-  if (!viewer.isManager) redirect("/finance");
+  await financeViewer("finance.journal");
 
   // Make sure the accounts people need for opening balances exist.
   await activeMoneyAccounts();

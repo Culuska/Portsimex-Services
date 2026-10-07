@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireStaff } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { recognizeInvoiceRevenue, recordAdvanceReceipt, recordInvoicePaymentCash, reverseInvoiceRevenue } from "@/lib/ledger";
 import { nextFinanceNumber, nextInvoiceNumber } from "@/lib/numbering";
 import { invoiceBalance, invoiceGrandTotal, invoiceTotals } from "@/lib/invoices";
@@ -46,7 +46,7 @@ export async function createInvoiceAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireStaff();
+  await requirePermission("invoices.manage");
 
   const descriptions = formData.getAll("description[]") as string[];
   const quantities = formData.getAll("quantity[]") as string[];
@@ -125,7 +125,7 @@ function refreshInvoice(id: string) {
 // moment it goes to the client, not when cash arrives (Dr Accounts
 // Receivable / Cr Service Revenue, Disbursements, Tax Payable).
 export async function issueInvoiceAction(id: string): Promise<void> {
-  const user = await requireStaff();
+  const user = await requirePermission("invoices.manage");
   await prisma.$transaction(async (tx) => {
     const inv = await tx.invoice.findUniqueOrThrow({ where: { id }, include: { items: true } });
     if (inv.status !== "DRAFT") return;
@@ -148,7 +148,7 @@ export async function issueInvoiceAction(id: string): Promise<void> {
 // dealt with first (refunded, or moved to client credit) so money is never
 // silently dropped.
 export async function cancelInvoiceAction(id: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requirePermission("invoices.cancel");
   const reason = String(formData.get("reason") ?? "").trim();
   if (!reason) return { error: "Give a reason for cancelling the invoice." };
   const inv = await prisma.invoice.findUniqueOrThrow({ where: { id }, include: { payments: true } });
@@ -180,7 +180,7 @@ const adjustmentsSchema = z.object({
 // Discount and tax can only change while the invoice is a draft -- once
 // issued, the amounts are in the ledger.
 export async function updateInvoiceAdjustmentsAction(id: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requirePermission("invoices.manage");
   const parsed = adjustmentsSchema.safeParse({ discountAmount: formData.get("discountAmount") || 0, taxRate: formData.get("taxRate") || 0 });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const inv = await prisma.invoice.findUniqueOrThrow({ where: { id }, include: { items: true } });
@@ -221,7 +221,7 @@ export async function addPaymentAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  const user = await requireStaff();
+  const user = await requirePermission("payments.record");
   const parsed = paymentSchema.safeParse({
     amount: formData.get("amount"),
     method: formData.get("method"),
@@ -292,7 +292,7 @@ export async function addPaymentAction(
 // Settles (part of) an invoice from the client's advance / credit balance:
 // Dr Client Advances / Cr Accounts Receivable. No new money moves.
 export async function applyAdvanceAction(id: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requirePermission("payments.record");
   const advanceId = String(formData.get("advanceId") ?? "");
   const amount = Number(formData.get("amount"));
   if (!advanceId) return { error: "Choose the advance to use." };
@@ -331,7 +331,7 @@ export async function applyAdvanceAction(id: string, _prev: State, formData: For
 }
 
 export async function deleteDraftInvoiceAction(id: string) {
-  await requireStaff();
+  await requirePermission("invoices.manage");
   const invoice = await prisma.invoice.findUnique({ where: { id } });
   if (!invoice || invoice.status !== "DRAFT") {
     return;

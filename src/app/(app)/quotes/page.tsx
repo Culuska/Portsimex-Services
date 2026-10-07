@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -13,6 +14,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default async function QuotesPage() {
+  await requirePermission("quotes.manage");
   const quotes = await prisma.quote.findMany({
     orderBy: { issueDate: "desc" },
     include: { client: true, items: true, invoice: true },

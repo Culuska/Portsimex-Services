@@ -1,6 +1,5 @@
+import { jobScopeWhere, requirePermission } from "@/lib/session";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
@@ -52,12 +51,13 @@ const FILTERS = [
 ] as const;
 
 export default async function JobsPage({ searchParams }: { searchParams: Promise<{ f?: string; cat?: string; mine?: string; q?: string }> }) {
-  const session = await auth();
-  if (!session || !["ADMIN", "SUPERVISOR", "STAFF"].includes(session.user.role)) redirect("/");
+  const me = await requirePermission("jobs.view");
+  const session = { user: me };
   const { f = "active", cat, mine, q } = await searchParams;
   const category = SERVICE_CATEGORIES.includes(cat as ServiceCategory) ? (cat as ServiceCategory) : undefined;
 
   const where: Prisma.JobWhereInput = {
+    ...jobScopeWhere(me),
     ...statusFilter(f),
     ...(category ? { service: { category } } : {}),
     ...(mine ? { responsibleId: session.user.id } : {}),

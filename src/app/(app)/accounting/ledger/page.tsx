@@ -1,14 +1,11 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
+import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Card, EmptyState, Badge } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 
 export default async function LedgerPage() {
-  const session = await auth();
-  if (!session || !isFullAccessRole(session.user.role)) redirect("/");
+  await requirePermission("reports.financial");
 
   const transactions = await prisma.ledgerTransaction.findMany({
     orderBy: { transactionDate: "desc" },

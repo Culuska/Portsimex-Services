@@ -4,7 +4,10 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireStaff } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
+import { getSettings } from "@/lib/settings";
+import { canApproveAmount, hasPermission } from "@/lib/permission-catalog";
+import { checkPaymentAuthorization } from "@/lib/finance-rules";
 import { accrueExpense, payoutExpense, reverseExpenseAccrual } from "@/lib/ledger";
 import { nextFinanceNumber } from "@/lib/numbering";
 import { uploadJobFile } from "@/lib/blob";
@@ -90,7 +93,7 @@ export async function createExpenseAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  const user = await requireStaff();
+  const user = await requirePermission("expenses.create");
   const parsed = createExpenseSchema.safeParse({
     description: formData.get("description"),
     amount: formData.get("amount"),
@@ -109,7 +112,13 @@ export async function createExpenseAction(
   const attribution = await resolveAttribution(parsed.data);
   if ("error" in attribution) return attribution;
 
-  const status = decideExpenseStatus(parsed.data.amount, parsed.data.status);
+  const settings = await getSettings();
+  const status = decideExpenseStatus(parsed.data.amount, parsed.data.status, settings.expenseApprovalThreshold);
+  if (status === "PAID") {
+    if (!hasPermission(user.grant, "expenses.pay")) return { error: "You can record the expense, but marking it paid needs the \"Mark expenses as paid\" permission -- save it as pending." };
+    const auth = checkPaymentAuthorization(parsed.data.amount, settings.paymentAuthorizationThreshold, hasPermission(user.grant, "payments.authorize"));
+    if (auth) return { error: auth };
+  }
   const source = paymentSource(formData);
 
   let receipt: { url: string; fileName: string } | null = null;
@@ -185,7 +194,7 @@ export async function updateExpenseAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  const user = await requireStaff();
+  const user = await requirePermission("expenses.create");
   const parsed = updateExpenseSchema.safeParse({
     description: formData.get("description"),
     vendorId: formData.get("vendorId"),
@@ -218,11 +227,14 @@ export async function updateExpenseAction(
   // actually rendered, i.e. existing.status === "PENDING".)
   const nextStatus =
     existing.status === "PENDING" && parsed.data.status
-      ? decideExpenseStatus(Number(existing.amount), parsed.data.status)
+      ? decideExpenseStatus(Number(existing.amount), parsed.data.status, (await getSettings()).expenseApprovalThreshold)
       : existing.status;
 
   if (nextStatus !== existing.status) {
     assertCanTransitionExpenseStatus(existing.status, nextStatus);
+  }
+  if (nextStatus === "PAID" && existing.status !== "PAID" && !hasPermission(user.grant, "expenses.pay")) {
+    return { error: "Marking an expense paid needs the \"Mark expenses as paid\" permission." };
   }
   if (nextStatus === "PAID" && existing.status !== "PAID" && existing.supplierBillId) {
     return { error: "This cost is a line on a supplier bill -- it is paid through the bill." };
@@ -259,9 +271,11 @@ export async function updateExpenseAction(
 // Managerial approval step: required before an expense over the auto-pay
 // threshold can be paid out.
 export async function approveExpenseAction(id: string) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("expenses.approve");
   const expense = await prisma.expense.findUniqueOrThrow({ where: { id } });
   assertCanTransitionExpenseStatus(expense.status, "APPROVED");
+  // Each role approves up to its own limit; bigger amounts go higher up.
+  if (!canApproveAmount(admin.grant, Number(expense.amount))) redirect(`/no-access?need=approval-limit&limit=${admin.grant.approvalLimit ?? ""}`);
 
   await prisma.$transaction(async (tx) => {
     await tx.expense.update({
@@ -287,7 +301,7 @@ export async function rejectExpenseAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("expenses.approve");
   const parsed = rejectExpenseSchema.safeParse({ reason: formData.get("reason") });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -328,9 +342,13 @@ export async function rejectExpenseAction(
 }
 
 export async function payExpenseAction(id: string, formData?: FormData) {
-  const user = await requireStaff();
+  const user = await requirePermission("expenses.pay");
   const expense = await prisma.expense.findUniqueOrThrow({ where: { id } });
   assertCanTransitionExpenseStatus(expense.status, "PAID");
+  const settings = await getSettings();
+  if (checkPaymentAuthorization(Number(expense.amount), settings.paymentAuthorizationThreshold, hasPermission(user.grant, "payments.authorize"))) {
+    redirect("/no-access?need=payments.authorize");
+  }
   if (expense.supplierBillId) throw new Error("This cost is a line on a supplier bill -- pay it through the bill.");
   const source = formData ? paymentSource(formData) : { paidFromId: null, paymentMethod: null };
 

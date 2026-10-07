@@ -1,14 +1,12 @@
+import { hasPermission } from "@/lib/permission-catalog";
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { ensureAgencies } from "@/lib/agencies";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 
 export default async function AgenciesPage() {
-  const session = await auth();
-  if (!session || !["ADMIN", "SUPERVISOR", "STAFF"].includes(session.user.role)) redirect("/");
+  const me = await requirePermission("jobs.view", "agencies.manage");
   await ensureAgencies();
   const agencies = await prisma.governmentAgency.findMany({
     orderBy: [{ active: "desc" }, { name: "asc" }],
@@ -19,7 +17,7 @@ export default async function AgenciesPage() {
       <PageHeader
         title="Government Agencies"
         description="Ministries, departments and offices that cases are submitted to"
-        action={isFullAccessRole(session.user.role) ? <ButtonLink href="/agencies/new">New agency</ButtonLink> : undefined}
+        action={hasPermission(me.grant, "agencies.manage") ? <ButtonLink href="/agencies/new">New agency</ButtonLink> : undefined}
       />
       {agencies.length === 0 ? (
         <EmptyState message="No agencies yet." />

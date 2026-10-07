@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatCard } from "@/components/ui";
 import ActionForm, { fieldClass } from "@/components/ActionForm";
@@ -10,8 +10,7 @@ import { invoiceBalance } from "@/lib/invoices";
 import { applyAdvanceToInvoiceAction, refundAdvanceAction } from "../../actions";
 
 export default async function AdvancePage({ params }: { params: Promise<{ id: string }> }) {
-  const viewer = await financeViewer();
-  if (!viewer.isStaff) redirect("/");
+  const viewer = await financeViewer("finance.view", "payments.record");
   const { id } = await params;
   const advance = await prisma.clientAdvance.findUnique({
     where: { id },
@@ -166,7 +165,7 @@ export default async function AdvancePage({ params }: { params: Promise<{ id: st
             </Card>
           )}
 
-          {b.remaining > 0.005 && viewer.isManager && (
+          {b.remaining > 0.005 && viewer.can("finance.refunds") && (
             <Card>
               <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">Refund to client</h2>
               <ActionForm

@@ -1,7 +1,7 @@
+import { hasPermission } from "@/lib/permission-catalog";
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 import { SUBMISSION_STATUS_LABELS } from "@/lib/submission-rules";
@@ -10,15 +10,14 @@ import AgencyForm from "../AgencyForm";
 import { saveAgencyAction } from "../actions";
 
 export default async function AgencyPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session || !["ADMIN", "SUPERVISOR", "STAFF"].includes(session.user.role)) redirect("/");
+  const me = await requirePermission("jobs.view", "agencies.manage");
   const { id } = await params;
   const agency = await prisma.governmentAgency.findUnique({
     where: { id },
     include: { submissions: { orderBy: { submittedAt: "desc" }, take: 50, include: { job: { include: { client: true } } } } },
   });
   if (!agency) notFound();
-  const isManager = isFullAccessRole(session.user.role);
+  const isManager = hasPermission(me.grant, "agencies.manage");
   return (
     <div>
       <PageHeader title={agency.name} description={[agency.department, agency.office, agency.location].filter(Boolean).join(" · ") || "Government agency"} action={<Badge status={agency.active ? "ACTIVE" : "INACTIVE"} />} />

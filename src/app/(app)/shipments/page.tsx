@@ -1,6 +1,6 @@
+import { hasPermission } from "@/lib/permission-catalog";
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
@@ -15,7 +15,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default async function ShipmentsPage() {
   const [session, shipments, pendingQuotes] = await Promise.all([
-    auth(),
+    requirePermission("shipments.manage"),
     prisma.shipment.findMany({
       orderBy: { createdAt: "desc" },
       include: { client: true, assignee: true },
@@ -30,7 +30,7 @@ export default async function ShipmentsPage() {
     }),
   ]);
 
-  const isAdmin = !!session && isFullAccessRole(session.user.role);
+  const isAdmin = hasPermission(session.grant, "requests.approve");
 
   return (
     <div>

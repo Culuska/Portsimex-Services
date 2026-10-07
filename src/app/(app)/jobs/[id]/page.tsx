@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
+import { notFound } from "next/navigation";
+import { requireJobAccess } from "@/lib/session";
+import { hasPermission } from "@/lib/permission-catalog";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { detailsOf, financialsOf, jobFinanceSelect } from "@/lib/jobs";
@@ -45,9 +45,9 @@ const btnGreen = "rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text
 const btnSmall = "rounded border border-zinc-300 px-2 py-0.5 text-xs text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 disabled:opacity-60";
 
 export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session || !["ADMIN", "SUPERVISOR", "STAFF"].includes(session.user.role)) redirect("/");
   const { id } = await params;
+  // Permission plus job-level access (service line / assigned jobs only).
+  const me = await requireJobAccess(id, "jobs.view");
 
   const job = await prisma.job.findUnique({
     where: { id },
@@ -88,7 +88,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
     ? deriveCaseStatus({ jobStatus: job.status, docs: job.documents, stages: job.stages, latestSubmission: job.submissions[0] ?? null })
     : null;
 
-  const isManager = isFullAccessRole(session.user.role);
+  const isManager = hasPermission(me.grant, "jobs.supervise");
   const fin = financialsOf(job);
   const details = detailsOf(job.details);
   const fields = parseFields(job.service.fields);

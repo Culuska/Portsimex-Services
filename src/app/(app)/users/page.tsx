@@ -1,38 +1,30 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
+import { requirePermission } from "@/lib/session";
 import { isFullAccessRole } from "@/lib/roles";
 import { formatDate } from "@/lib/format";
 import { Badge, ButtonLink, Card, PageHeader } from "@/components/ui";
+import UsersTabs from "./UsersTabs";
 
 export default async function UsersPage() {
-  const session = await auth();
-  if (!session || !isFullAccessRole(session.user.role)) {
-    redirect("/");
-  }
-
+  await requirePermission("users.manage");
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "asc" },
-    include: { ministry: true, vendorClient: true },
+    include: { ministry: true, vendorClient: true, accessProfile: true },
   });
 
   return (
     <div>
-      <PageHeader
-        title="Users"
-        description="Manage who can access Portsimex Ops & Finance"
-        action={<ButtonLink href="/users/new">New user</ButtonLink>}
-      />
-      <Card className="p-0">
+      <PageHeader title="Users & Roles" description="Who can sign in, and what each person is allowed to do" action={<ButtonLink href="/users/new">New user</ButtonLink>} />
+      <UsersTabs active="users" />
+      <Card className="overflow-x-auto p-0">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-zinc-200 dark:border-zinc-800 text-zinc-500">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Email</th>
               <th className="px-4 py-3 font-medium">Role</th>
-              <th className="px-4 py-3 font-medium">Scope</th>
-              <th className="px-4 py-3 font-medium">Joined</th>
+              <th className="px-4 py-3 font-medium">Two-factor</th>
+              <th className="px-4 py-3 font-medium">Last sign-in</th>
               <th className="px-4 py-3 font-medium">Status</th>
             </tr>
           </thead>
@@ -40,21 +32,23 @@ export default async function UsersPage() {
             {users.map((u) => (
               <tr key={u.id}>
                 <td className="px-4 py-3">
-                  <Link
-                    href={`/users/${u.id}`}
-                    className="font-medium text-zinc-900 hover:underline dark:text-zinc-50"
-                  >
+                  <Link href={`/users/${u.id}`} className="font-medium text-zinc-900 hover:underline dark:text-zinc-50">
                     {u.name}
                   </Link>
+                  <p className="text-xs text-zinc-500">
+                    {u.email}
+                    {u.emailVerifiedAt ? " · confirmed" : ""}
+                  </p>
                 </td>
-                <td className="px-4 py-3 text-zinc-500">{u.email}</td>
-                <td className="px-4 py-3 text-zinc-500">{u.role.replace(/_/g, " ")}</td>
-                <td className="px-4 py-3 text-zinc-500">
-                  {u.ministry?.name ?? u.vendorClient?.name ?? "—"}
+                <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
+                  {isFullAccessRole(u.role) ? "Super Admin" : u.role === "STAFF" ? (u.accessProfile?.name ?? "Staff (original access)") : u.role.replace(/_/g, " ").toLowerCase()}
+                  {(u.ministry || u.vendorClient) && <p className="text-xs text-zinc-500">{u.ministry?.name ?? u.vendorClient?.name}</p>}
                 </td>
-                <td className="px-4 py-3 text-zinc-500">{formatDate(u.createdAt)}</td>
+                <td className="px-4 py-3 text-zinc-500">{u.mfaEnabledAt ? "On" : "Off"}</td>
+                <td className="px-4 py-3 text-zinc-500">{u.lastLoginAt ? formatDate(u.lastLoginAt) : "Never"}</td>
                 <td className="px-4 py-3">
                   <Badge status={u.active ? "ACTIVE" : "INACTIVE"} />
+                  {u.mustChangePassword && <p className="mt-1 text-xs text-amber-700">temporary password</p>}
                 </td>
               </tr>
             ))}

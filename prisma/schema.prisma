@@ -211,6 +211,7 @@ enum NotificationType {
   DOCUMENT_EXPIRING
   TASK_OVERDUE
   JOB_OVERDUE
+  SECURITY_ALERT
 }
 
 // A submission to a ministry / government office / immigration office.
@@ -319,6 +320,27 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Granular permissions come from an access profile (job title). Staff
+  // without one keep the legacy staff permissions; ADMIN / SUPERVISOR
+  // hold every permission.
+  accessProfile   AccessProfile? @relation(fields: [accessProfileId], references: [id])
+  accessProfileId String?
+
+  // Session control: bumping sessionVersion signs the user out everywhere
+  // (password change, deactivation, "sign out all devices").
+  sessionVersion     Int       @default(0)
+  mustChangePassword Boolean   @default(false)
+  passwordChangedAt  DateTime?
+  lastLoginAt        DateTime?
+  emailVerifiedAt    DateTime?
+  // Two-factor login: TOTP secret encrypted at rest, recovery codes hashed.
+  mfaSecret          String?
+  mfaPendingSecret   String?
+  mfaEnabledAt       DateTime?
+  mfaRecoveryCodes   String[]  @default([])
+
+  authTokens AuthToken[]
+
   shipments Shipment[] @relation("ShipmentAssignee")
 
   clientNotes             ClientNote[]
@@ -353,6 +375,7 @@ model User {
   officerSubmissions      JobSubmission[]  @relation("SubmissionOfficer")
   createdSubmissions      JobSubmission[]  @relation("SubmissionCreatedBy")
   jobFollowUps            JobFollowUp[]
+  createdAuthTokens       AuthToken[]      @relation("AuthTokenCreatedBy")
 
   @@map("users")
 }
@@ -1488,4 +1511,83 @@ model SupplierPayment {
   ledgerTransaction LedgerTransaction?
 
   @@map("supplier_payments")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: access control and security
+// ---------------------------------------------------------------------------
+
+// A job title with a configurable set of permissions, the service lines
+// whose jobs it works on, and how much expense it may approve.
+model AccessProfile {
+  id               String            @id @default(cuid())
+  // Stable key for the built-in profiles ("finance-manager"...), null for custom ones.
+  key              String?           @unique
+  name             String            @unique
+  description      String?
+  permissions      String[]
+  // Empty = all service lines.
+  jobCategories    ServiceCategory[]
+  assignedJobsOnly Boolean           @default(false)
+  // Highest expense this profile may approve; null = no limit.
+  approvalLimit    Decimal?          @db.Decimal(12, 2)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  users User[]
+
+  @@map("access_profiles")
+}
+
+// Company-wide settings (a single row, id "default").
+model AppSettings {
+  id                            String   @id @default("default")
+  // Expenses above this need approval before they can be paid.
+  expenseApprovalThreshold      Decimal  @default(500) @db.Decimal(12, 2)
+  // Supplier payments and refunds above this need the payments.authorize permission.
+  paymentAuthorizationThreshold Decimal  @default(2000) @db.Decimal(12, 2)
+  // Hours a sign-in lasts before the user must sign in again.
+  sessionHours                  Int      @default(12)
+  // Managers (users who can approve or move money) must turn on two-factor login.
+  requireMfaForManagers         Boolean  @default(false)
+  updatedAt                     DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+enum AuthTokenPurpose {
+  PASSWORD_RESET
+  VERIFY_EMAIL
+}
+
+// Single-use links for password reset and email verification. Only a hash
+// of the token is stored, so a database leak can't be used to reset accounts.
+model AuthToken {
+  id        String           @id @default(cuid())
+  purpose   AuthTokenPurpose
+  tokenHash String           @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  // Set when an admin generated the link for the user.
+  createdBy   User?   @relation("AuthTokenCreatedBy", fields: [createdById], references: [id])
+  createdById String?
+
+  @@index([userId, purpose])
+  @@map("auth_tokens")
+}
+
+// Sign-in failures and reset requests, for rate limiting and lockout.
+model RateLimitEvent {
+  id        String   @id @default(cuid())
+  bucket    String
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([bucket, key, createdAt])
+  @@map("rate_limit_events")
 }

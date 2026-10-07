@@ -1,7 +1,7 @@
+import { hasPermission } from "@/lib/permission-catalog";
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { activeServices } from "@/lib/catalog";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -23,8 +23,7 @@ const MOVE_LABELS: Record<string, string> = {
 };
 
 export default async function ServiceRequestPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session || !["ADMIN", "SUPERVISOR", "STAFF"].includes(session.user.role)) redirect("/");
+  const me = await requirePermission("requests.manage", "requests.approve");
   const { id } = await params;
   const [sr, services, history] = await Promise.all([
     prisma.serviceRequest.findUnique({
@@ -41,7 +40,7 @@ export default async function ServiceRequestPage({ params }: { params: Promise<{
     prisma.auditLog.findMany({ where: { entityType: "ServiceRequest", entityId: id }, orderBy: { createdAt: "desc" }, take: 30 }),
   ]);
   if (!sr) notFound();
-  const isManager = isFullAccessRole(session.user.role);
+  const isManager = hasPermission(me.grant, "requests.approve");
   const moves = allowedRequestMoves(sr.status).filter((m) => isManager || !MANAGER_ONLY.includes(m));
   const canOpenJobs = ["APPROVED", "IN_PROGRESS", "WAITING", "COMPLETED"].includes(sr.status);
   const editable = !["COMPLETED", "CLOSED", "CANCELLED"].includes(sr.status);

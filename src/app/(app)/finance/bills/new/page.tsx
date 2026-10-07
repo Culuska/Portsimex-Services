@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader } from "@/components/ui";
 import { attributableJobs } from "@/lib/jobs";
@@ -9,8 +8,7 @@ import { createBillAction } from "../../actions";
 const SUGGESTED = ["Transport", "Fuel", "Customs", "Port", "Government fees", "Ministry processing", "Immigration fees", "Vehicle rental cost", "Vehicle maintenance", "Driver allowance", "Accommodation", "Communication", "SIM / telecom cost", "Supplier charges", "Courier", "Office expenses", "Bank charges", "Other"];
 
 export default async function NewBillPage({ searchParams }: { searchParams: Promise<{ vendor?: string }> }) {
-  const viewer = await financeViewer();
-  if (!viewer.isStaff) redirect("/");
+  await financeViewer("bills.manage");
   const { vendor } = await searchParams;
   const [vendors, jobs, categories] = await Promise.all([
     prisma.vendor.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),

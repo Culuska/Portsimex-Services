@@ -1,7 +1,5 @@
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
 import { netLineAmount } from "@/lib/invoices";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/format";
@@ -12,8 +10,7 @@ import { SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS } from "@/lib/service-templ
 import { Card, PageHeader, StatCard } from "@/components/ui";
 
 export default async function ProfitabilityPage({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
-  const session = await auth();
-  if (!session || !isFullAccessRole(session.user.role)) redirect("/");
+  await requirePermission("reports.operational");
   const { year } = await searchParams;
   const y = year && /^\d{4}$/.test(year) ? Number(year) : null;
   const range = y ? { gte: new Date(y, 0, 1), lt: new Date(y + 1, 0, 1) } : undefined;

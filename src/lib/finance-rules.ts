@@ -196,3 +196,9 @@ export function nextMoneyAccountCode(existingCodes: string[]): string {
 export function businessDate(value: string, now = new Date()): Date {
   return value === now.toISOString().slice(0, 10) ? now : new Date(value);
 }
+
+/** Payments / refunds above the authorization threshold need someone holding payments.authorize. */
+export function checkPaymentAuthorization(amount: number, threshold: number, canAuthorize: boolean): string | null {
+  if (canAuthorize || amount <= threshold + EPS) return null;
+  return `Payments over ${threshold.toFixed(2)} must be made by someone who can authorize payments (e.g. the Finance Manager).`;
+}

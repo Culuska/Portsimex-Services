@@ -1,5 +1,5 @@
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
+import { hasPermission } from "@/lib/permission-catalog";
+import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { activeServices } from "@/lib/catalog";
 import { invoiceTotal } from "@/lib/invoices";
@@ -14,7 +14,7 @@ export default async function NewServiceRequestPage({
 }) {
   const { clientId, quoteId } = await searchParams;
   const [session, clients, services, users, quote] = await Promise.all([
-    auth(),
+    requirePermission("requests.manage"),
     prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     activeServices(),
     prisma.user.findMany({
@@ -35,7 +35,7 @@ export default async function NewServiceRequestPage({
         clients={clients}
         services={services.map((s) => ({ id: s.id, name: s.name, categoryLabel: SERVICE_CATEGORY_LABELS[s.category], slaDays: s.slaDays }))}
         users={users}
-        canApprove={!!session && isFullAccessRole(session.user.role)}
+        canApprove={hasPermission(session.grant, "requests.approve")}
         defaults={{
           clientId: quote?.clientId ?? clientId,
           quoteId: quote?.id,

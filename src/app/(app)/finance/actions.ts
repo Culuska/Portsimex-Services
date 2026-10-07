@@ -4,7 +4,9 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireStaff } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
+import { getSettings } from "@/lib/settings";
+import { hasPermission } from "@/lib/permission-catalog";
 import { audit } from "@/lib/audit";
 import { nextFinanceNumber } from "@/lib/numbering";
 import {
@@ -19,7 +21,7 @@ import {
   reverseExpenseAccrual,
 } from "@/lib/ledger";
 import { advanceRemaining, billFigures, syncBillStatus, syncInvoiceStatus } from "@/lib/finance";
-import { businessDate, checkAdvanceApplication, checkJournal, checkRefund, checkSupplierPayment, FinanceRuleError } from "@/lib/finance-rules";
+import { businessDate, checkAdvanceApplication, checkJournal, checkPaymentAuthorization, checkRefund, checkSupplierPayment, FinanceRuleError } from "@/lib/finance-rules";
 import { decideExpenseStatus } from "@/lib/expense-approval";
 import { invoiceBalance } from "@/lib/invoices";
 import { uploadJobFile } from "@/lib/blob";
@@ -59,7 +61,7 @@ const moneyAccountSchema = z.object({
 });
 
 export async function createMoneyAccountAction(_prev: State, formData: FormData): Promise<State> {
-  const user = await requireAdmin();
+  const user = await requirePermission("finance.banking");
   const parsed = moneyAccountSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
   const d = parsed.data;
@@ -82,7 +84,7 @@ const transferSchema = z.object({
 });
 
 export async function transferAction(_prev: State, formData: FormData): Promise<State> {
-  const user = await requireAdmin();
+  const user = await requirePermission("finance.banking");
   const parsed = transferSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
   const d = parsed.data;
@@ -117,7 +119,7 @@ const advanceSchema = z.object({
 // Money received before invoicing: Dr Cash/Bank / Cr Client Advances (a
 // liability -- not revenue until it settles an invoice).
 export async function receiveAdvanceAction(_prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requirePermission("payments.record");
   const parsed = advanceSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
   const d = parsed.data;
@@ -158,7 +160,7 @@ export async function receiveAdvanceAction(_prev: State, formData: FormData): Pr
 }
 
 export async function applyAdvanceToInvoiceAction(advanceId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requirePermission("payments.record");
   const invoiceId = String(formData.get("invoiceId") ?? "");
   const amount = Number(formData.get("amount"));
   if (!invoiceId) return { error: "Choose the invoice to settle." };
@@ -203,10 +205,12 @@ const refundSchema = z.object({
 
 // Paying unused credit back to the client: Dr Client Advances / Cr Cash/Bank. Managers only.
 export async function refundAdvanceAction(advanceId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireAdmin();
+  const user = await requirePermission("finance.refunds");
   const parsed = refundSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
   const d = parsed.data;
+  const auth = checkPaymentAuthorization(d.amount, (await getSettings()).paymentAuthorizationThreshold, hasPermission(user.grant, "payments.authorize"));
+  if (auth) return { error: auth };
   const result = await guarded(async () => {
     await prisma.$transaction(async (tx) => {
       const advance = await tx.clientAdvance.findUniqueOrThrow({ where: { id: advanceId }, include: { client: true } });
@@ -257,7 +261,7 @@ const billLineSchema = z.object({
 // billable or not) accrued to Accounts Payable; the bill is then settled
 // by one or more supplier payments.
 export async function createBillAction(_prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requirePermission("bills.manage");
   const parsed = billSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
   const d = parsed.data;
@@ -301,6 +305,7 @@ export async function createBillAction(_prev: State, formData: FormData): Promis
     }
   }
 
+  const settings = await getSettings();
   const bill = await prisma.$transaction(async (tx) => {
     const vendor = await tx.vendor.findUniqueOrThrow({ where: { id: d.vendorId } });
     const created = await tx.supplierBill.create({
@@ -324,7 +329,7 @@ export async function createBillAction(_prev: State, formData: FormData): Promis
           amount: l.amount,
           categoryId: category.id,
           vendorId: d.vendorId,
-          status: decideExpenseStatus(l.amount, "PENDING"),
+          status: decideExpenseStatus(l.amount, "PENDING", settings.expenseApprovalThreshold),
           incurredAt: new Date(d.billDate),
           jobId: l.jobId || null,
           clientId: l.jobId ? (jobClient.get(l.jobId) ?? null) : null,
@@ -363,10 +368,12 @@ const supplierPaymentSchema = z.object({
 
 // Paying a supplier: Dr Accounts Payable / Cr Cash/Bank. Partial payments allowed.
 export async function paySupplierBillAction(billId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requirePermission("bills.pay");
   const parsed = supplierPaymentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
   const d = parsed.data;
+  const auth = checkPaymentAuthorization(d.amount, (await getSettings()).paymentAuthorizationThreshold, hasPermission(user.grant, "payments.authorize"));
+  if (auth) return { error: auth };
   const result = await guarded(async () => {
     await prisma.$transaction(async (tx) => {
       const f = await billFigures(tx, billId);
@@ -397,7 +404,7 @@ export async function paySupplierBillAction(billId: string, _prev: State, formDa
 
 // A bill entered in error: its lines are rejected and their accruals reversed. Only while unpaid.
 export async function cancelBillAction(billId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireAdmin();
+  const user = await requirePermission("bills.manage");
   const reason = String(formData.get("reason") ?? "").trim();
   if (!reason) return { error: "Give a reason for cancelling the bill." };
   const result = await guarded(async () => {
@@ -434,7 +441,7 @@ const accountSchema = z.object({
 });
 
 export async function createAccountAction(_prev: State, formData: FormData): Promise<State> {
-  const user = await requireAdmin();
+  const user = await requirePermission("finance.journal");
   const parsed = accountSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
   const d = parsed.data;
@@ -450,7 +457,7 @@ export async function createAccountAction(_prev: State, formData: FormData): Pro
 }
 
 export async function postJournalAction(_prev: State, formData: FormData): Promise<State> {
-  const user = await requireAdmin();
+  const user = await requirePermission("finance.journal");
   const memo = String(formData.get("memo") ?? "").trim();
   const date = String(formData.get("date") ?? "");
   if (!memo) return { error: "Describe the entry (e.g. \"Opening bank balance\")." };

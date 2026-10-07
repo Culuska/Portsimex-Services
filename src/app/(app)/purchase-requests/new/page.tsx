@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
 import PurchaseRequestForm from "../PurchaseRequestForm";
@@ -7,6 +8,7 @@ export default async function NewPurchaseRequestPage({
 }: {
   searchParams: Promise<{ shipmentId?: string }>;
 }) {
+  await requirePermission("purchases.manage");
   const { shipmentId } = await searchParams;
   const [vendors, shipments, categories, clients] = await Promise.all([
     prisma.vendor.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),

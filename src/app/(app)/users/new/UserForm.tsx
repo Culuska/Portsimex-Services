@@ -6,9 +6,9 @@ type ActionState = { error: string | null };
 type UserFormAction = (state: ActionState, formData: FormData) => Promise<ActionState>;
 
 const ROLE_LABELS: Record<string, string> = {
-  STAFF: "Staff",
-  SUPERVISOR: "Supervisor",
-  ADMIN: "Admin (SuperAdmin)",
+  STAFF: "Staff (permissions from a job-title role)",
+  SUPERVISOR: "Supervisor (Super Admin)",
+  ADMIN: "Admin (Super Admin)",
   MINISTRY_REGISTRAR: "Ministry Registrar",
   MINISTRY_OFFICER: "Ministry Officer",
   VENDOR: "Vendor",
@@ -17,7 +17,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ROLE_PERMISSIONS: Record<string, string> = {
   STAFF:
-    "Full access to daily operations: shipments, quotes, invoices, expenses, clients, vendors, purchase requests. Cannot manage Users or Accounting.",
+    "What they can do comes from the job-title role chosen below (e.g. Finance Manager, Immigration Officer). With no job-title role they keep the original staff access: daily operations, invoices and expenses, but no approvals, users or accounting.",
   SUPERVISOR:
     "Full access to everything in the app, with no restrictions -- identical to Admin, including Users, Accounting/Ledger, and every approval step (expense approval, starting a shipment from an accepted quote, ministry registry).",
   ADMIN:
@@ -36,16 +36,21 @@ export default function UserForm({
   action,
   ministries,
   clients,
+  profiles,
+  canGrantSuperAdmin,
   defaultValues,
   submitLabel,
 }: {
   action: UserFormAction;
   ministries: { id: string; name: string }[];
   clients: { id: string; name: string }[];
+  profiles: { id: string; name: string; description: string | null }[];
+  canGrantSuperAdmin: boolean;
   defaultValues?: {
     name: string;
     email: string;
     role: string;
+    accessProfileId: string | null;
     ministryId: string | null;
     vendorClientId: string | null;
   };
@@ -55,6 +60,10 @@ export default function UserForm({
     error: null,
   });
   const [role, setRole] = useState(defaultValues?.role ?? "STAFF");
+  const [profileId, setProfileId] = useState(defaultValues?.accessProfileId ?? "");
+  const lockedSuperAdmin = !canGrantSuperAdmin && (defaultValues?.role === "ADMIN" || defaultValues?.role === "SUPERVISOR");
+  const roleOptions = Object.entries(ROLE_LABELS).filter(([value]) => canGrantSuperAdmin || lockedSuperAdmin || (value !== "ADMIN" && value !== "SUPERVISOR"));
+  const profile = profiles.find((p) => p.id === profileId);
   const isEdit = Boolean(defaultValues);
 
   return (
@@ -88,14 +97,14 @@ export default function UserForm({
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="password" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          {isEdit ? "New password (leave blank to keep current)" : "Temporary password"}
+          {isEdit ? "New temporary password (leave blank to keep current)" : "Temporary password"}
         </label>
         <input
           id="password"
           name="password"
           type="password"
           required={!isEdit}
-          minLength={8}
+          minLength={10}
           autoComplete="new-password"
           className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         />
@@ -111,7 +120,7 @@ export default function UserForm({
           onChange={(e) => setRole(e.target.value)}
           className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
         >
-          {Object.entries(ROLE_LABELS).map(([value, label]) => (
+          {roleOptions.map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>
@@ -121,6 +130,34 @@ export default function UserForm({
           {ROLE_PERMISSIONS[role]}
         </p>
       </div>
+
+      <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+        <input type="checkbox" name="mustChangePassword" defaultChecked />
+        Must choose their own password at first sign-in
+      </label>
+
+      {role === "STAFF" && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor="accessProfileId" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Job-title role
+          </label>
+          <select
+            id="accessProfileId"
+            name="accessProfileId"
+            value={profileId}
+            onChange={(e) => setProfileId(e.target.value)}
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="">None -- original staff access</option>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          {profile?.description && <p className="text-xs text-zinc-500">{profile.description}. See Users &amp; Roles → Roles for exactly what it allows.</p>}
+        </div>
+      )}
 
       {(role === "MINISTRY_OFFICER" || role === "MINISTRY_REGISTRAR") && (
         <div className="flex flex-col gap-1">

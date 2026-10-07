@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
+import { jobScopeWhere, requireUser } from "@/lib/session";
+import { hasPermission } from "@/lib/permission-catalog";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { invoiceBalance } from "@/lib/invoices";
@@ -21,18 +21,22 @@ const ROLE_HOME: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const session = await auth();
-  if (!session) redirect("/login");
-  const home = ROLE_HOME[session.user.role];
+  const me = await requireUser();
+  const session = { user: me };
+  const home = ROLE_HOME[me.role];
   if (home) redirect(home);
-  const isManager = isFullAccessRole(session.user.role);
+  // Each section shows only with the matching permission; job figures are
+  // limited to the jobs this user may see.
+  const isManager = hasPermission(me.grant, "reports.operational") || hasPermission(me.grant, "reports.financial");
+  const canApprove = hasPermission(me.grant, "expenses.approve");
+  const scope = jobScopeWhere(me);
 
   const today = new Date(new Date().setHours(0, 0, 0, 0));
   const yearStart = new Date(today.getFullYear(), 0, 1);
 
   const [activeJobs, myTasks, awaitingRequests, pendingExpenses, pendingPRs, invoices, balances, activeShipments, yearJobs, followUpsDue, docsExpiring] = await Promise.all([
     prisma.job.findMany({
-      where: { status: { in: ["OPEN", "IN_PROGRESS", "WAITING"] } },
+      where: { status: { in: ["OPEN", "IN_PROGRESS", "WAITING"] }, ...scope },
       include: { client: true, service: true, responsible: true, documents: true },
       orderBy: { dueDate: { sort: "asc", nulls: "last" } },
     }),
@@ -59,11 +63,11 @@ export default async function DashboardPage() {
       where: {
         status: { in: ["SUBMITTED", "UNDER_REVIEW", "INFO_REQUIRED"] },
         nextFollowUpAt: { lt: new Date(today.getTime() + 86_400_000) },
-        job: { status: { notIn: ["CLOSED", "CANCELLED"] } },
+        job: { status: { notIn: ["CLOSED", "CANCELLED"] }, ...scope },
       },
     }),
     prisma.jobDocument.count({
-      where: { received: true, expiryDate: { not: null, lt: new Date(today.getTime() + 31 * 86_400_000) }, job: { status: { not: "CANCELLED" } } },
+      where: { received: true, expiryDate: { not: null, lt: new Date(today.getTime() + 31 * 86_400_000) }, job: { status: { not: "CANCELLED" }, ...scope } },
     }),
   ]);
 
@@ -244,7 +248,7 @@ export default async function DashboardPage() {
           </Card>
         )}
 
-        {isManager && pendingExpenses.length > 0 && (
+        {canApprove && pendingExpenses.length > 0 && (
           <Card>
             <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">Expenses awaiting approval</h2>
             <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">

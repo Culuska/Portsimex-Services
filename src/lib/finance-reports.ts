@@ -7,6 +7,7 @@ import { AGING_BUCKETS, AGING_LABELS, ageItems, buildStatement, daysPastDue, typ
 import { balanceSheet, cashFlow, monthlyPerformance, profitAndLoss, type AccountType, type LedgerRow } from "@/lib/statements";
 import { SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
 import { balanceOfAdvance, PAYMENT_METHOD_LABELS } from "@/lib/finance";
+import type { Permission } from "@/lib/permission-catalog";
 
 export type ReportCell = string | number | null;
 export type ReportColumn = { label: string; money?: boolean };
@@ -24,16 +25,18 @@ export type Report = {
 
 export type ReportParams = { from: Date; to: Date; clientId?: string };
 
+const FIN: Permission[] = ["reports.financial"];
+// Who may open each report (any one of the permissions).
 export const REPORTS = {
-  "profit-loss": { title: "Profit & Loss", filter: "period", staff: false },
-  "balance-sheet": { title: "Balance Sheet", filter: "asOf", staff: false },
-  "cash-flow": { title: "Cash Flow", filter: "period", staff: false },
-  receivables: { title: "Accounts Receivable", filter: "asOf", staff: true },
-  payables: { title: "Accounts Payable", filter: "asOf", staff: true },
-  expenses: { title: "Expense Report", filter: "period", staff: false },
-  revenue: { title: "Revenue Report", filter: "period", staff: false },
-  monthly: { title: "Monthly Performance", filter: "asOf", staff: false },
-  statement: { title: "Client Statement", filter: "period", staff: true },
+  "profit-loss": { title: "Profit & Loss", filter: "period", permissions: FIN },
+  "balance-sheet": { title: "Balance Sheet", filter: "asOf", permissions: FIN },
+  "cash-flow": { title: "Cash Flow", filter: "period", permissions: FIN },
+  receivables: { title: "Accounts Receivable", filter: "asOf", permissions: ["reports.financial", "finance.view"] as Permission[] },
+  payables: { title: "Accounts Payable", filter: "asOf", permissions: ["reports.financial", "finance.view"] as Permission[] },
+  expenses: { title: "Expense Report", filter: "period", permissions: FIN },
+  revenue: { title: "Revenue Report", filter: "period", permissions: FIN },
+  monthly: { title: "Monthly Performance", filter: "asOf", permissions: FIN },
+  statement: { title: "Client Statement", filter: "period", permissions: ["reports.financial", "invoices.view"] as Permission[] },
 } as const;
 export type ReportKey = keyof typeof REPORTS;
 

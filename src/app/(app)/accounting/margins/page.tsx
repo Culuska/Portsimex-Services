@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
+import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Card, EmptyState } from "@/components/ui";
 import { formatCurrency } from "@/lib/format";
@@ -23,8 +21,7 @@ type MarginRow = {
 // business with no owned fleet, so all such costs already flow through
 // Expense/Vendor rather than a separate driver-payroll table).
 export default async function NetJobMarginPage() {
-  const session = await auth();
-  if (!session || !isFullAccessRole(session.user.role)) redirect("/");
+  await requirePermission("reports.financial");
 
   const rows = await prisma.$queryRaw<MarginRow[]>`
     WITH revenue AS (

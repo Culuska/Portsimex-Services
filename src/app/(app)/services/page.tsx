@@ -1,15 +1,12 @@
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { ensureServiceCatalog } from "@/lib/catalog";
 import { parseDocuments, parseStages, SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
 import { Badge, ButtonLink, Card, PageHeader } from "@/components/ui";
 
 export default async function ServicesPage() {
-  const session = await auth();
-  if (!session || !isFullAccessRole(session.user.role)) redirect("/");
+  await requirePermission("catalog.manage");
   await ensureServiceCatalog();
 
   const [services, jobCounts] = await Promise.all([

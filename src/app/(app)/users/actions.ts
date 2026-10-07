@@ -6,23 +6,24 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
-import { ROLES } from "@/lib/roles";
+import { requirePermission, type CurrentUser } from "@/lib/session";
+import { ROLES, isFullAccessRole } from "@/lib/roles";
+import { checkPassword } from "@/lib/security-rules";
+import { audit } from "@/lib/audit";
 
 const userSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  email: z.string().email("Valid email is required"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  name: z.string().trim().min(1, "Name is required"),
+  email: z.string().trim().email("Valid email is required"),
+  password: z.string(),
   role: z.enum(ROLES),
+  accessProfileId: z.string().optional().or(z.literal("")),
   ministryId: z.string().optional().or(z.literal("")),
   vendorClientId: z.string().optional().or(z.literal("")),
+  mustChangePassword: z.boolean(),
 });
 
 function assertScopeForRole(data: { role: string; ministryId?: string; vendorClientId?: string }) {
-  if (
-    (data.role === "MINISTRY_OFFICER" || data.role === "MINISTRY_REGISTRAR") &&
-    !data.ministryId
-  ) {
+  if ((data.role === "MINISTRY_OFFICER" || data.role === "MINISTRY_REGISTRAR") && !data.ministryId) {
     return "Select a ministry for this role";
   }
   if (data.role === "VENDOR" && !data.vendorClientId) {
@@ -31,100 +32,116 @@ function assertScopeForRole(data: { role: string; ministryId?: string; vendorCli
   return null;
 }
 
-export async function createUserAction(
-  _prevState: { error: string | null },
-  formData: FormData,
-): Promise<{ error: string | null }> {
-  await requireAdmin();
+// Only a Super Admin can create or change Super Admins -- otherwise anyone
+// with "manage users" could promote themselves.
+function escalationError(me: CurrentUser, targetRole: string, currentRole?: string) {
+  if (isFullAccessRole(me.role)) return null;
+  if (isFullAccessRole(targetRole) || (currentRole && isFullAccessRole(currentRole))) return "Only a Super Admin can create or change Admin / Supervisor accounts.";
+  return null;
+}
 
-  const parsed = userSchema.safeParse({
+function parse(formData: FormData) {
+  return userSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
-    password: formData.get("password"),
+    password: formData.get("password") ?? "",
     role: formData.get("role"),
-    // These two fields only exist in the DOM for Ministry/Vendor roles --
-    // for every other role formData.get() returns null (not ""), which
-    // z.string().optional() rejects (it only accepts undefined).
+    accessProfileId: formData.get("accessProfileId") || "",
+    // Only in the DOM for Ministry / Vendor roles -- formData.get() is then null.
     ministryId: formData.get("ministryId") || "",
     vendorClientId: formData.get("vendorClientId") || "",
+    mustChangePassword: formData.get("mustChangePassword") === "on",
   });
+}
 
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  }
+const describe = (u: { name: string; email: string; role: string; accessProfileId: string | null; active?: boolean }) => ({
+  name: u.name,
+  email: u.email,
+  role: u.role,
+  accessProfileId: u.accessProfileId,
+  ...(u.active !== undefined ? { active: u.active } : {}),
+});
 
-  const scopeError = assertScopeForRole(parsed.data);
+export async function createUserAction(_prevState: { error: string | null }, formData: FormData): Promise<{ error: string | null }> {
+  const me = await requirePermission("users.manage");
+  const parsed = parse(formData);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const d = parsed.data;
+  const scopeError = assertScopeForRole(d) ?? escalationError(me, d.role);
   if (scopeError) return { error: scopeError };
+  const problem = checkPassword(d.password, { email: d.email, name: d.name });
+  if (problem) return { error: `Temporary password: ${problem}` };
+  if (await prisma.user.findUnique({ where: { email: d.email.toLowerCase() } })) return { error: "A user with that email already exists." };
 
-  const existing = await prisma.user.findUnique({
-    where: { email: parsed.data.email.toLowerCase() },
-  });
-  if (existing) {
-    return { error: "A user with that email already exists." };
-  }
-
-  const passwordHash = await bcrypt.hash(parsed.data.password, 10);
-
-  await prisma.user.create({
-    data: {
-      name: parsed.data.name,
-      email: parsed.data.email.toLowerCase(),
-      passwordHash,
-      role: parsed.data.role,
-      ministryId: parsed.data.ministryId || null,
-      vendorClientId: parsed.data.vendorClientId || null,
-    },
+  await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        name: d.name,
+        email: d.email.toLowerCase(),
+        passwordHash: await bcrypt.hash(d.password, 12),
+        role: d.role,
+        accessProfileId: d.role === "STAFF" ? d.accessProfileId || null : null,
+        ministryId: d.ministryId || null,
+        vendorClientId: d.vendorClientId || null,
+        mustChangePassword: d.mustChangePassword,
+      },
+    });
+    await audit(tx, me, {
+      action: "USER_CREATED",
+      module: "Security",
+      entityType: "User",
+      entityId: created.id,
+      message: `${me.name} created the account for ${created.name} (${created.email}).`,
+      after: describe(created),
+    });
   });
 
   revalidatePath("/users");
   redirect("/users");
 }
 
-// Password is optional on edit -- leaving it blank keeps the current one.
-const updateUserSchema = userSchema.extend({
-  password: z.string().min(8, "Password must be at least 8 characters").optional().or(z.literal("")),
-});
-
-export async function updateUserAction(
-  id: string,
-  _prevState: { error: string | null },
-  formData: FormData,
-): Promise<{ error: string | null }> {
-  await requireAdmin();
-
-  const parsed = updateUserSchema.safeParse({
-    name: formData.get("name"),
-    email: formData.get("email"),
-    password: formData.get("password") || "",
-    role: formData.get("role"),
-    ministryId: formData.get("ministryId") || "",
-    vendorClientId: formData.get("vendorClientId") || "",
-  });
-
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  }
-
-  const scopeError = assertScopeForRole(parsed.data);
+export async function updateUserAction(id: string, _prevState: { error: string | null }, formData: FormData): Promise<{ error: string | null }> {
+  const me = await requirePermission("users.manage");
+  const parsed = parse(formData);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const d = parsed.data;
+  const before = await prisma.user.findUniqueOrThrow({ where: { id } });
+  const scopeError = assertScopeForRole(d) ?? escalationError(me, d.role, before.role);
   if (scopeError) return { error: scopeError };
-
-  const existing = await prisma.user.findUnique({
-    where: { email: parsed.data.email.toLowerCase() },
-  });
-  if (existing && existing.id !== id) {
-    return { error: "A user with that email already exists." };
+  if (me.id === id && d.role !== before.role) return { error: "You can't change your own role." };
+  if (d.password) {
+    const problem = checkPassword(d.password, { email: d.email, name: d.name });
+    if (problem) return { error: `New password: ${problem}` };
   }
+  const existing = await prisma.user.findUnique({ where: { email: d.email.toLowerCase() } });
+  if (existing && existing.id !== id) return { error: "A user with that email already exists." };
 
-  await prisma.user.update({
-    where: { id },
-    data: {
-      name: parsed.data.name,
-      email: parsed.data.email.toLowerCase(),
-      role: parsed.data.role,
-      ministryId: parsed.data.ministryId || null,
-      vendorClientId: parsed.data.vendorClientId || null,
-      ...(parsed.data.password ? { passwordHash: await bcrypt.hash(parsed.data.password, 10) } : {}),
-    },
+  await prisma.$transaction(async (tx) => {
+    const after = await tx.user.update({
+      where: { id },
+      data: {
+        name: d.name,
+        email: d.email.toLowerCase(),
+        role: d.role,
+        accessProfileId: d.role === "STAFF" ? d.accessProfileId || null : null,
+        ministryId: d.ministryId || null,
+        vendorClientId: d.vendorClientId || null,
+        ...(d.email.toLowerCase() !== before.email ? { emailVerifiedAt: null } : {}),
+        // A password set by an administrator is temporary; it also ends the user's other sessions.
+        ...(d.password
+          ? { passwordHash: await bcrypt.hash(d.password, 12), mustChangePassword: d.mustChangePassword, passwordChangedAt: new Date(), sessionVersion: { increment: 1 } }
+          : {}),
+      },
+    });
+    await audit(tx, me, {
+      action: "USER_UPDATED",
+      module: "Security",
+      entityType: "User",
+      entityId: id,
+      message: `${me.name} updated ${after.name}'s account${d.password ? " and set a new password" : ""}.`,
+      before: describe(before),
+      after: describe(after),
+    });
   });
 
   revalidatePath("/users");
@@ -133,18 +150,27 @@ export async function updateUserAction(
 }
 
 export async function deactivateUserAction(id: string) {
-  const admin = await requireAdmin();
-  if (admin.id === id) {
-    throw new Error("You cannot deactivate your own account.");
-  }
-  await prisma.user.update({ where: { id }, data: { active: false } });
+  const me = await requirePermission("users.manage");
+  if (me.id === id) throw new Error("You cannot deactivate your own account.");
+  const target = await prisma.user.findUniqueOrThrow({ where: { id } });
+  if (escalationError(me, target.role)) redirect("/no-access?need=admin");
+  await prisma.$transaction(async (tx) => {
+    // Deactivating also ends every session the user has open.
+    await tx.user.update({ where: { id }, data: { active: false, sessionVersion: { increment: 1 } } });
+    await audit(tx, me, { action: "USER_DEACTIVATED", module: "Security", entityType: "User", entityId: id, message: `${me.name} deactivated ${target.name}.` });
+  });
   revalidatePath("/users");
   revalidatePath(`/users/${id}`);
 }
 
 export async function reactivateUserAction(id: string) {
-  await requireAdmin();
-  await prisma.user.update({ where: { id }, data: { active: true } });
+  const me = await requirePermission("users.manage");
+  const target = await prisma.user.findUniqueOrThrow({ where: { id } });
+  if (escalationError(me, target.role)) redirect("/no-access?need=admin");
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id }, data: { active: true } });
+    await audit(tx, me, { action: "USER_REACTIVATED", module: "Security", entityType: "User", entityId: id, message: `${me.name} reactivated ${target.name}.` });
+  });
   revalidatePath("/users");
   revalidatePath(`/users/${id}`);
 }
@@ -153,14 +179,12 @@ export async function reactivateUserAction(id: string) {
 // nothing at all -- most of those relations restrict deletion at the
 // database level on purpose, to protect the audit trail. Deactivate is
 // the normal way to offboard a user who has done anything in the system.
-export async function deleteUserAction(
-  id: string,
-  _prevState: { error: string | null },
-): Promise<{ error: string | null }> {
-  const admin = await requireAdmin();
-  if (admin.id === id) {
-    return { error: "You cannot delete your own account." };
-  }
+export async function deleteUserAction(id: string, _prevState: { error: string | null }): Promise<{ error: string | null }> {
+  const me = await requirePermission("users.manage");
+  if (me.id === id) return { error: "You cannot delete your own account." };
+  const target = await prisma.user.findUniqueOrThrow({ where: { id } });
+  const esc = escalationError(me, target.role);
+  if (esc) return { error: esc };
 
   try {
     await prisma.user.delete({ where: { id } });
@@ -172,6 +196,7 @@ export async function deleteUserAction(
     }
     throw error;
   }
+  await audit(prisma, me, { action: "USER_DELETED", module: "Security", entityType: "User", entityId: id, message: `${me.name} deleted the unused account of ${target.name} (${target.email}).` });
 
   revalidatePath("/users");
   redirect("/users");

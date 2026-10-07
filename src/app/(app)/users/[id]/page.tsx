@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { isFullAccessRole } from "@/lib/roles";
+import { requirePermission } from "@/lib/session";
+import { ensureAccessProfiles } from "@/lib/access-profiles";
+import UserSecurityCard from "./UserSecurityCard";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import SimpleActionButton from "@/components/SimpleActionButton";
@@ -20,20 +22,20 @@ export default async function UserDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const session = await auth();
-  if (!session || !isFullAccessRole(session.user.role)) {
-    redirect("/");
-  }
+  const me = await requirePermission("users.manage");
+  await ensureAccessProfiles();
 
-  const [user, ministries, clients] = await Promise.all([
+  const [user, ministries, clients, profiles] = await Promise.all([
     prisma.user.findUnique({ where: { id } }),
     prisma.ministry.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.accessProfile.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, description: true } }),
   ]);
 
   if (!user) notFound();
 
-  const isSelf = session.user.id === user.id;
+  const isSelf = me.id === user.id;
+  const canTouch = isFullAccessRole(me.role) || !isFullAccessRole(user.role);
   const boundUpdate = updateUserAction.bind(null, user.id);
   const boundDeactivate = deactivateUserAction.bind(null, user.id);
   const boundReactivate = reactivateUserAction.bind(null, user.id);
@@ -54,11 +56,14 @@ export default async function UserDetailPage({
             action={boundUpdate}
             ministries={ministries}
             clients={clients}
+            profiles={profiles}
+            canGrantSuperAdmin={isFullAccessRole(me.role)}
             submitLabel="Save changes"
             defaultValues={{
               name: user.name,
               email: user.email,
               role: user.role,
+              accessProfileId: user.accessProfileId,
               ministryId: user.ministryId,
               vendorClientId: user.vendorClientId,
             }}
@@ -124,6 +129,20 @@ export default async function UserDetailPage({
           )}
         </Card>
       </div>
+
+      {canTouch && (
+        <div className="mt-6">
+          <UserSecurityCard
+            userId={user.id}
+            name={user.name}
+            isSelf={isSelf}
+            mfaOn={!!user.mfaEnabledAt}
+            lastLoginAt={user.lastLoginAt}
+            emailVerifiedAt={user.emailVerifiedAt}
+            active={user.active}
+          />
+        </div>
+      )}
 
       <Link
         href="/users"

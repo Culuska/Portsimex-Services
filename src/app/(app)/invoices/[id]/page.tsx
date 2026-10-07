@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -21,6 +22,7 @@ export default async function InvoiceDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requirePermission("invoices.view");
   const { id } = await params;
   const invoice = await prisma.invoice.findUnique({
     where: { id },

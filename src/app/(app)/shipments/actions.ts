@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireStaff } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 
 const shipmentTypes = ["IMPORT", "EXPORT", "TRANSSHIPMENT", "DOMESTIC", "CUSTOMS_CLEARANCE"] as const;
 const transportModes = ["SEA", "AIR", "ROAD"] as const;
@@ -93,7 +93,8 @@ export async function createShipmentAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireAdmin();
+  // Starting the work is a manager's decision, not just the client's acceptance.
+  await requirePermission("requests.approve");
   const parsed = createSchema.safeParse({
     ...readShipmentForm(formData),
     quoteId: formData.get("quoteId"),
@@ -164,7 +165,7 @@ export async function updateShipmentAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  await requireStaff();
+  await requirePermission("shipments.manage");
   const parsed = updateSchema.safeParse({
     ...readShipmentForm(formData),
     status: formData.get("status"),

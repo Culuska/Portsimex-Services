@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
+import { requirePermission } from "@/lib/session";
+import { hasPermission } from "@/lib/permission-catalog";
 import { prisma } from "@/lib/prisma";
 import { EmptyState, PageHeader } from "@/components/ui";
 import ShipmentForm from "../ShipmentForm";
@@ -11,7 +11,7 @@ export default async function NewShipmentPage({
 }: {
   searchParams: Promise<{ quoteId?: string }>;
 }) {
-  const [session, { quoteId }] = await Promise.all([auth(), searchParams]);
+  const [session, { quoteId }] = await Promise.all([requirePermission("shipments.manage"), searchParams]);
 
   const quote = quoteId
     ? await prisma.quote.findUnique({ where: { id: quoteId }, include: { client: true } })
@@ -42,7 +42,7 @@ export default async function NewShipmentPage({
 
   // Client acceptance alone isn't enough to commit to the job -- only an
   // admin can actually start the shipment (see createShipmentAction).
-  if (!session || !isFullAccessRole(session.user.role)) {
+  if (!hasPermission(session.grant, "requests.approve")) {
     return (
       <div>
         <PageHeader title="New shipment" />

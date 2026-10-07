@@ -1,6 +1,5 @@
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
@@ -13,8 +12,7 @@ const FILTERS = [
 ] as const;
 
 export default async function ServiceRequestsPage({ searchParams }: { searchParams: Promise<{ f?: string }> }) {
-  const session = await auth();
-  if (!session || !["ADMIN", "SUPERVISOR", "STAFF"].includes(session.user.role)) redirect("/");
+  const me = await requirePermission("requests.manage", "requests.approve");
   const { f = "open" } = await searchParams;
   const filter = FILTERS.find((x) => x.key === f) ?? FILTERS[0];
 

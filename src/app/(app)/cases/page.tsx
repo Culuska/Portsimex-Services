@@ -1,6 +1,5 @@
+import { jobScopeWhere, requirePermission } from "@/lib/session";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -27,14 +26,13 @@ const STATUS_TONE: Partial<Record<CaseStatus, string>> = {
 };
 
 export default async function CasesPage({ searchParams }: { searchParams: Promise<{ t?: string; all?: string }> }) {
-  const session = await auth();
-  if (!session || !["ADMIN", "SUPERVISOR", "STAFF"].includes(session.user.role)) redirect("/");
+  const me = await requirePermission("jobs.view");
   const { t = "tax", all } = await searchParams;
   const key = (t in TABS ? t : "tax") as keyof typeof TABS;
   const tab = TABS[key];
 
   const jobs = await prisma.job.findMany({
-    where: { ...tab.where, ...(all ? {} : { status: { notIn: ["CLOSED", "CANCELLED"] } }) },
+    where: { AND: [tab.where, jobScopeWhere(me)], ...(all ? {} : { status: { notIn: ["CLOSED", "CANCELLED"] } }) },
     orderBy: { createdAt: "desc" },
     take: 300,
     include: {
@@ -47,7 +45,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
     },
   });
   const counts = await Promise.all(
-    (Object.keys(TABS) as (keyof typeof TABS)[]).map(async (k) => [k, await prisma.job.count({ where: { ...TABS[k].where, status: { notIn: ["CLOSED", "CANCELLED"] } } })] as const),
+    (Object.keys(TABS) as (keyof typeof TABS)[]).map(async (k) => [k, await prisma.job.count({ where: { AND: [TABS[k].where, jobScopeWhere(me)], status: { notIn: ["CLOSED", "CANCELLED"] } } })] as const),
   );
   const today = new Date(new Date().setHours(0, 0, 0, 0));
 

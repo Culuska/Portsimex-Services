@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { normalizePrefix } from "@/lib/document-numbers";
 import {
@@ -39,7 +39,7 @@ export async function saveServiceAction(
   _prev: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("catalog.manage");
   const parsed = serviceSchema.safeParse({
     name: formData.get("name") ?? "",
     code: formData.get("code") ?? "",

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { SERVICE_TYPE_LABELS } from "@/lib/services";
 import DocumentPreview from "@/components/DocumentPreview";
 
@@ -9,7 +9,7 @@ export default async function QuotePrintPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireUser();
+  await requirePermission("quotes.manage");
   const { id } = await params;
   const quote = await prisma.quote.findUnique({
     where: { id },

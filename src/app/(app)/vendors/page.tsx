@@ -1,8 +1,10 @@
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 
 export default async function VendorsPage() {
+  await requirePermission("vendors.manage");
   const vendors = await prisma.vendor.findMany({
     orderBy: { name: "asc" },
     include: { _count: { select: { expenses: true } } },

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -18,8 +18,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 // Account register: every movement on one cash box / bank account, with a running balance.
 export default async function MoneyAccountPage({ params }: { params: Promise<{ id: string }> }) {
-  const viewer = await financeViewer();
-  if (!viewer.isManager) redirect("/finance");
+  await financeViewer("finance.banking", "reports.financial");
   const { id } = await params;
   const account = await prisma.moneyAccount.findUnique({ where: { id }, include: { account: true } });
   if (!account) notFound();

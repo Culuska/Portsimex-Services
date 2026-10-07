@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { attributableJobs } from "@/lib/jobs";
 import { PageHeader } from "@/components/ui";
@@ -8,6 +9,7 @@ export default async function NewInvoicePage({
 }: {
   searchParams: Promise<{ shipmentId?: string }>;
 }) {
+  await requirePermission("invoices.manage");
   const { shipmentId } = await searchParams;
   const [clients, shipments, inProcessQuotes, jobs] = await Promise.all([
     prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),

@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatCard } from "@/components/ui";
 import ActionForm, { fieldClass } from "@/components/ActionForm";
 import { formatCurrency } from "@/lib/format";
 import { activeMoneyAccounts, MONEY_ACCOUNT_KIND_LABELS } from "@/lib/finance";
-import { financeViewer } from "@/lib/finance-access";
+import { canSeeReport, financeViewer } from "@/lib/finance-access";
 import { loadLedgerRows, REPORTS } from "@/lib/finance-reports";
 import { balancesAsOf, profitAndLoss } from "@/lib/statements";
 import { createMoneyAccountAction, transferAction } from "./actions";
@@ -23,8 +22,7 @@ const REPORT_BLURBS: Record<keyof typeof REPORTS, string> = {
 };
 
 export default async function FinancePage() {
-  const viewer = await financeViewer();
-  if (!viewer.isStaff) redirect("/");
+  const viewer = await financeViewer("finance.view");
 
   const now = new Date();
   const [accounts, rows, openBills, advancesCount] = await Promise.all([
@@ -44,7 +42,7 @@ export default async function FinancePage() {
   const totalMoney = money.reduce((s, a) => s + a.balance, 0);
   const month = profitAndLoss(rows, new Date(now.getFullYear(), now.getMonth(), 1), now);
   const year = profitAndLoss(rows, new Date(now.getFullYear(), 0, 1), now);
-  const reportKeys = (Object.keys(REPORTS) as (keyof typeof REPORTS)[]).filter((k) => viewer.isManager || REPORTS[k].staff);
+  const reportKeys = (Object.keys(REPORTS) as (keyof typeof REPORTS)[]).filter((k) => canSeeReport(viewer.me.grant, k));
 
   return (
     <div>
@@ -59,7 +57,7 @@ export default async function FinancePage() {
             <Link href="/finance/bills" className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
               Supplier bills
             </Link>
-            {viewer.isManager && (
+            {viewer.can("finance.journal") && (
               <Link href="/finance/journal" className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
                 Journal entries
               </Link>
@@ -73,7 +71,7 @@ export default async function FinancePage() {
         <StatCard label="Receivables" value={formatCurrency(byCode("1100"))} hint="owed by clients" />
         <StatCard label="Payables" value={formatCurrency(byCode("2000"))} hint={`${openBills} open supplier bill${openBills === 1 ? "" : "s"}`} />
         <StatCard label="Client advances" value={formatCurrency(byCode("2100"))} hint={`unused deposits & credits · ${advancesCount} received`} />
-        {viewer.isManager && (
+        {viewer.can("reports.financial") && (
           <>
             <StatCard label="Profit this month" value={formatCurrency(month.netProfit)} hint={`revenue ${formatCurrency(month.totalRevenue)}`} />
             <StatCard label={`Profit ${now.getFullYear()} to date`} value={formatCurrency(year.netProfit)} hint={year.marginPercent !== null ? `${year.marginPercent}% margin` : undefined} />
@@ -91,7 +89,7 @@ export default async function FinancePage() {
               {money.map((a) => (
                 <tr key={a.id}>
                   <td className="px-4 py-2">
-                    {viewer.isManager ? (
+                    {viewer.can("finance.banking") || viewer.can("reports.financial") ? (
                       <Link href={`/finance/accounts/${a.id}`} className="font-medium text-brand-600 hover:underline">
                         {a.name}
                       </Link>
@@ -110,7 +108,7 @@ export default async function FinancePage() {
               ))}
             </tbody>
           </table>
-          {viewer.isManager && (
+          {viewer.can("finance.banking") && (
             <div className="flex flex-col gap-3 border-t border-zinc-200 p-4 dark:border-zinc-800">
               <details>
                 <summary className="cursor-pointer text-sm font-medium text-brand-600">Add a bank / cash / mobile money account…</summary>

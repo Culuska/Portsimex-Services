@@ -1,9 +1,11 @@
+import { requirePermission } from "@/lib/session";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 
 export default async function PurchaseRequestsPage() {
+  await requirePermission("purchases.manage", "purchases.approve");
   const requests = await prisma.purchaseRequest.findMany({
     orderBy: { requestedAt: "desc" },
     include: { category: true, requestedBy: true, vendor: true },

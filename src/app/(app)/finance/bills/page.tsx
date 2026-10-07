@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -12,8 +11,7 @@ const FILTERS = [
 ] as const;
 
 export default async function SupplierBillsPage({ searchParams }: { searchParams: Promise<{ f?: string }> }) {
-  const viewer = await financeViewer();
-  if (!viewer.isStaff) redirect("/");
+  await financeViewer("finance.view", "bills.manage", "bills.pay");
   const { f } = await searchParams;
   const filter = FILTERS.find((x) => x.key === f) ?? FILTERS[0];
   const bills = await prisma.supplierBill.findMany({

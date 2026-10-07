@@ -6,6 +6,7 @@ declare module "next-auth" {
     role?: Role;
     ministryId?: string | null;
     vendorClientId?: string | null;
+    sessionVersion?: number;
   }
 
   interface Session {
@@ -14,6 +15,8 @@ declare module "next-auth" {
       role: Role;
       ministryId: string | null;
       vendorClientId: string | null;
+      sessionVersion: number;
+      loginAt?: number;
     } & DefaultSession["user"];
   }
 }
@@ -24,5 +27,7 @@ declare module "next-auth/jwt" {
     role?: Role;
     ministryId?: string | null;
     vendorClientId?: string | null;
+    sessionVersion?: number;
+    loginAt?: number;
   }
 }

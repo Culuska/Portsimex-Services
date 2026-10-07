@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import ActionForm, { fieldClass } from "@/components/ActionForm";
@@ -9,8 +8,7 @@ import { financeViewer } from "@/lib/finance-access";
 import { receiveAdvanceAction } from "../actions";
 
 export default async function AdvancesPage({ searchParams }: { searchParams: Promise<{ client?: string; show?: string }> }) {
-  const viewer = await financeViewer();
-  if (!viewer.isStaff) redirect("/");
+  await financeViewer("finance.view", "payments.record");
   const { client: clientFilter, show } = await searchParams;
 
   const [advances, clients, jobs, moneyAccounts] = await Promise.all([

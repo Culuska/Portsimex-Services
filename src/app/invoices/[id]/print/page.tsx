@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { SERVICE_TYPE_LABELS } from "@/lib/services";
 import { formatCurrency } from "@/lib/format";
 import { invoiceBalance, invoicePaid, invoiceTotals } from "@/lib/invoices";
@@ -11,7 +11,7 @@ export default async function InvoicePrintPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireUser();
+  await requirePermission("invoices.view");
   const { id } = await params;
   const invoice = await prisma.invoice.findUnique({
     where: { id },

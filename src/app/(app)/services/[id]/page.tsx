@@ -1,6 +1,5 @@
-import { notFound, redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { isFullAccessRole } from "@/lib/roles";
+import { requirePermission } from "@/lib/session";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
   documentsToLines,
@@ -17,8 +16,7 @@ import ServiceForm from "../ServiceForm";
 import { saveServiceAction } from "../actions";
 
 export default async function EditServicePage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session || !isFullAccessRole(session.user.role)) redirect("/");
+  await requirePermission("catalog.manage");
   const { id } = await params;
   const s = await prisma.serviceDefinition.findUnique({ where: { id } });
   if (!s) notFound();

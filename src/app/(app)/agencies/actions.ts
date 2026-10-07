@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { audit } from "@/lib/audit";
 
 const agencySchema = z.object({
@@ -23,7 +23,7 @@ const agencySchema = z.object({
 });
 
 export async function saveAgencyAction(id: string | null, _prev: { error: string | null }, formData: FormData): Promise<{ error: string | null }> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("agencies.manage");
   const get = (k: string) => String(formData.get(k) ?? "");
   const parsed = agencySchema.safeParse({
     name: get("name"),

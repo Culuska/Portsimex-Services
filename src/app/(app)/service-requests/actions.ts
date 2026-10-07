@@ -4,8 +4,8 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireStaff } from "@/lib/session";
-import { isFullAccessRole } from "@/lib/roles";
+import { requirePermission } from "@/lib/session";
+import { hasPermission } from "@/lib/permission-catalog";
 import { audit } from "@/lib/audit";
 import { nextServiceRequestNumber } from "@/lib/numbering";
 import { createJob, syncServiceRequestStatus } from "@/lib/jobs";
@@ -33,7 +33,7 @@ const requestSchema = z.object({
 });
 
 export async function createServiceRequestAction(_prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requirePermission("requests.manage");
   const parsed = requestSchema.safeParse({
     clientId: formData.get("clientId") ?? "",
     serviceIds: formData.getAll("serviceIds"),
@@ -54,7 +54,7 @@ export async function createServiceRequestAction(_prev: State, formData: FormDat
   const d = parsed.data;
   const approveNow = d.submit === "APPROVE";
   const initialStatus = d.submit === "APPROVE" ? "APPROVED" : d.submit;
-  if (approveNow && !isFullAccessRole(user.role)) {
+  if (approveNow && !hasPermission(user.grant, "requests.approve")) {
     return { error: "Only a manager can approve a request and open its jobs." };
   }
 
@@ -135,8 +135,8 @@ async function openJobsForRequest(tx: Tx, user: { id: string; name?: string | nu
 }
 
 export async function moveServiceRequestAction(id: string, to: RequestStatus): Promise<State> {
-  const user = await requireStaff();
-  if (MANAGER_ONLY.includes(to) && !isFullAccessRole(user.role)) return { error: "Only a manager can do that." };
+  const user = await requirePermission("requests.manage", "requests.approve");
+  if (MANAGER_ONLY.includes(to) && !hasPermission(user.grant, "requests.approve")) return { error: "Only a manager can do that." };
   const sr = await prisma.serviceRequest.findUniqueOrThrow({ where: { id }, include: { jobs: true } });
   if (!canMoveRequest(sr.status, to)) return { error: `A ${sr.status.toLowerCase()} request can't be moved to ${to.toLowerCase()}.` };
   if (to === "CANCELLED" && sr.jobs.some((j) => j.status !== "CANCELLED")) {
@@ -163,8 +163,7 @@ export async function moveServiceRequestAction(id: string, to: RequestStatus): P
 }
 
 export async function openJobForLineAction(srId: string, lineId: string): Promise<State> {
-  const user = await requireStaff();
-  if (!isFullAccessRole(user.role)) return { error: "Only a manager can open jobs." };
+  const user = await requirePermission("requests.approve");
   const sr = await prisma.serviceRequest.findUniqueOrThrow({ where: { id: srId } });
   if (!["APPROVED", "IN_PROGRESS", "WAITING", "COMPLETED"].includes(sr.status)) {
     return { error: "Approve the request before opening jobs." };
@@ -178,7 +177,7 @@ export async function openJobForLineAction(srId: string, lineId: string): Promis
 const addLineSchema = z.object({ serviceId: z.string().min(1, "Choose a service"), notes: z.string().trim() });
 
 export async function addRequestLineAction(srId: string, _prev: State, formData: FormData): Promise<State> {
-  const user = await requireStaff();
+  const user = await requirePermission("requests.manage");
   const parsed = addLineSchema.safeParse({ serviceId: formData.get("serviceId") ?? "", notes: formData.get("notes") ?? "" });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const sr = await prisma.serviceRequest.findUniqueOrThrow({ where: { id: srId } });

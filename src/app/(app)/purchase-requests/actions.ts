@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireStaff } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { SERVICE_TYPES, RATE_BASED_SERVICE_TYPES } from "@/lib/services";
 
 const purchaseRequestSchema = z.object({
@@ -36,7 +36,7 @@ export async function createPurchaseRequestAction(
   _prevState: { error: string | null },
   formData: FormData,
 ): Promise<{ error: string | null }> {
-  const user = await requireStaff();
+  const user = await requirePermission("purchases.manage");
   const parsed = purchaseRequestSchema.safeParse({
     description: formData.get("description"),
     amount: formData.get("amount"),
@@ -80,7 +80,7 @@ export async function createPurchaseRequestAction(
 }
 
 export async function approvePurchaseRequestAction(id: string) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("purchases.approve");
 
   const pr = await prisma.purchaseRequest.findUniqueOrThrow({ where: { id } });
   if (pr.status !== "PENDING") return;
@@ -113,7 +113,7 @@ export async function approvePurchaseRequestAction(id: string) {
 }
 
 export async function rejectPurchaseRequestAction(id: string) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("purchases.approve");
 
   const pr = await prisma.purchaseRequest.findUniqueOrThrow({ where: { id } });
   if (pr.status !== "PENDING") return;
