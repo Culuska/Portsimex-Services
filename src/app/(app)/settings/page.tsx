@@ -6,9 +6,11 @@ import { Card, PageHeader } from "@/components/ui";
 import ActionForm, { fieldClass } from "@/components/ActionForm";
 import { LOGIN_RULES, PASSWORD_MIN_LENGTH } from "@/lib/security-rules";
 import { saveSettingsAction } from "./actions";
+import { isFullAccessRole } from "@/lib/roles";
+import ClearTestData from "./ClearTestData";
 
 export default async function SettingsPage() {
-  await requirePermission("settings.manage");
+  const me = await requirePermission("settings.manage");
   const s = await getSettings();
   return (
     <div>
@@ -76,6 +78,16 @@ export default async function SettingsPage() {
           )}
         </Card>
       </div>
+
+      {isFullAccessRole(me.role) && (
+        <Card className="mt-6 border-red-300 dark:border-red-900">
+          <h2 className="mb-1 font-semibold text-red-700 dark:text-red-400">Clear test data</h2>
+          <p className="mb-4 text-sm text-zinc-500">
+            For a clean start before going live: removes everything entered while testing. Super Admins only; it cannot be undone.
+          </p>
+          <ClearTestData />
+        </Card>
+      )}
     </div>
   );
 }
