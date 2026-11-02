@@ -27,13 +27,17 @@ export function PageHeader({
 export function Card({
   children,
   className = "",
+  id,
 }: {
   children: React.ReactNode;
   className?: string;
+  /** Anchor for "next step" links (e.g. #billing). */
+  id?: string;
 }) {
   return (
     <div
-      className={`rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-5 ${className}`}
+      id={id}
+      className={`scroll-mt-6 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-5 ${className}`}
     >
       {children}
     </div>

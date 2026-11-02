@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Badge, Card, PageHeader } from "@/components/ui";
+import { JourneyPanel, RecordChain } from "@/components/Journey";
+import { invoiceJourney } from "@/lib/journey";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { invoiceBalance, invoiceTotals } from "@/lib/invoices";
 import { SERVICE_TYPE_LABELS } from "@/lib/services";
@@ -29,7 +31,7 @@ export default async function InvoiceDetailPage({
     include: {
       client: true,
       shipment: true,
-      items: { include: { job: { include: { service: true } } } },
+      items: { include: { job: { include: { service: true, serviceRequest: { select: { id: true, requestNumber: true } } } } } },
       payments: { orderBy: { paidAt: "desc" }, include: { moneyAccount: true, advance: true } },
       overpaymentCredits: true,
     },
@@ -44,9 +46,25 @@ export default async function InvoiceDetailPage({
   const overdue = open && balance > 0.005 && invoice.status !== "DRAFT" && invoice.dueDate < new Date(new Date().setHours(0, 0, 0, 0));
   const boundDelete = deleteDraftInvoiceAction.bind(null, invoice.id);
   const boundIssue = issueInvoiceAction.bind(null, invoice.id);
+  const jobs = [...new Map(invoice.items.filter((i) => i.job).map((i) => [i.job!.id, i.job!])).values()];
+  const requests = [...new Map(jobs.filter((j) => j.serviceRequest).map((j) => [j.serviceRequest!.id, j.serviceRequest!])).values()];
+  const journey = invoiceJourney({
+    status: invoice.status,
+    total: t.total,
+    balance: open ? balance : 0,
+    jobs: jobs.map((j) => ({ id: j.id, jobNumber: j.jobNumber, status: j.status })),
+  });
 
   return (
     <div>
+      <RecordChain
+        items={[
+          { label: invoice.client.name, href: `/clients/${invoice.clientId}` },
+          ...requests.map((r) => ({ label: r.requestNumber, href: `/service-requests/${r.id}`, sub: "request" })),
+          ...jobs.map((j) => ({ label: j.jobNumber, href: `/jobs/${j.id}`, sub: "job" })),
+          { label: invoice.invoiceNumber, sub: "invoice" },
+        ]}
+      />
       <PageHeader
         title={invoice.invoiceNumber}
         description={`${invoice.client.name}${invoice.shipment ? ` · ${invoice.shipment.reference}` : ""}`}
@@ -64,6 +82,8 @@ export default async function InvoiceDetailPage({
           </div>
         }
       />
+
+      <JourneyPanel journey={journey} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
@@ -143,7 +163,7 @@ export default async function InvoiceDetailPage({
             )}
           </Card>
 
-          <Card>
+          <Card id="status">
             <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">Status</h2>
             {invoice.status === "DRAFT" && (
               <div className="flex flex-col gap-4">
@@ -204,7 +224,7 @@ export default async function InvoiceDetailPage({
         </div>
 
         <div className="flex flex-col gap-6">
-          <Card>
+          <Card id="payment">
             <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">
               Record a payment
             </h2>

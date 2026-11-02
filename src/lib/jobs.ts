@@ -1,7 +1,8 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { audit, type AuditActor } from "@/lib/audit";
 import { nextJobNumber } from "@/lib/numbering";
-import { computeDueDate } from "@/lib/job-rules";
+import { computeDueDate, currentStage, missingOutputDocuments, missingRequiredDocuments } from "@/lib/job-rules";
+import type { JobFacts } from "@/lib/journey";
 import { deriveRequestStatus } from "@/lib/request-rules";
 import { computeJobFinancials, type BillingType, type InvoiceStatus } from "@/lib/job-finance";
 import { invoiceGrandTotal, netLineAmount } from "@/lib/invoices";
@@ -171,4 +172,34 @@ export async function attributableJobs(db: Tx | typeof import("@/lib/prisma").pr
     select: { id: true, jobNumber: true, title: true, clientId: true, client: { select: { name: true } } },
   });
   return jobs.map((j) => ({ id: j.id, clientId: j.clientId, label: `${j.jobNumber} -- ${j.client.name} -- ${j.title}` }));
+}
+
+// Everything needed to place a job on the Request -> ... -> Closed journey.
+export const jobJourneySelect = {
+  id: true,
+  status: true,
+  stages: { select: { id: true, name: true, position: true, status: true, requiresDocuments: true } },
+  documents: { select: { name: true, required: true, isOutput: true, received: true, waived: true } },
+  ...jobFinanceSelect,
+} satisfies Prisma.JobSelect;
+
+type JourneyShape = Prisma.JobGetPayload<{ select: typeof jobJourneySelect }>;
+
+export function journeyFactsOf(job: JourneyShape): JobFacts {
+  const fin = financialsOf(job);
+  const stages = job.stages;
+  return {
+    id: job.id,
+    status: job.status,
+    stagesTotal: stages.filter((s) => s.status !== "SKIPPED").length,
+    stagesDone: stages.filter((s) => s.status === "DONE").length,
+    currentStageName: currentStage(stages)?.name ?? null,
+    missingDocs: missingRequiredDocuments(job.documents).length,
+    missingOutput: missingOutputDocuments(job.documents).length,
+    invoiced: fin.invoiced,
+    draftLines: fin.draftLines,
+    unbilled: Math.round((fin.unbilledBillableCosts + fin.unbilledMarkup) * 100) / 100,
+    paid: fin.paid,
+    outstanding: fin.outstanding,
+  };
 }

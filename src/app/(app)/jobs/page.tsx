@@ -3,7 +3,9 @@ import Link from "next/link";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
-import { currentStage, missingRequiredDocuments, slaState } from "@/lib/job-rules";
+import { missingRequiredDocuments, slaState } from "@/lib/job-rules";
+import { jobFinanceSelect, journeyFactsOf } from "@/lib/jobs";
+import { jobNextAction, jobStep, readyToClose, type StepKey } from "@/lib/journey";
 import { SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS, type ServiceCategory } from "@/lib/service-templates";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 
@@ -14,6 +16,23 @@ function dayBounds(offsetDays = 0) {
   const end = new Date(start.getTime() + 86_400_000);
   return { start, end };
 }
+
+const STEP_LABEL: Record<StepKey, string> = {
+  request: "Request",
+  approval: "Approval",
+  operations: "Operations",
+  billing: "Billing",
+  payment: "Payment",
+  closed: "Closed",
+};
+const STEP_STYLE: Record<StepKey, string> = {
+  request: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+  approval: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  operations: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
+  billing: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  payment: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
+  closed: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+};
 
 const ACTIVE: Prisma.EnumJobStatusFilter = { in: ["OPEN", "IN_PROGRESS", "WAITING"] };
 
@@ -27,6 +46,9 @@ function statusFilter(key: string): Prisma.JobWhereInput {
     case "waiting":
       return { status: "WAITING" };
     case "completed":
+    case "billing":
+    case "payment":
+    case "closing":
       return { status: "COMPLETED" };
     case "closed":
       return { status: "CLOSED" };
@@ -44,7 +66,9 @@ const FILTERS = [
   ["today", "Due today"],
   ["overdue", "Overdue"],
   ["waiting", "Waiting"],
-  ["completed", "Completed (to close)"],
+  ["billing", "To invoice"],
+  ["payment", "Awaiting payment"],
+  ["closing", "Ready to close"],
   ["closed", "Closed"],
   ["cancelled", "Cancelled"],
   ["all", "All"],
@@ -67,8 +91,18 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
     where,
     orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
     take: 300,
-    include: { client: true, service: true, responsible: true, stages: true, documents: true },
+    include: { client: true, service: true, responsible: true, stages: true, documents: true, ...jobFinanceSelect },
   });
+  // Where each job is on the request -> ... -> closed journey; the finance
+  // filters (to invoice / awaiting payment / ready to close) come from it.
+  const rows = jobs
+    .map((j) => {
+      const facts = journeyFactsOf(j);
+      return { j, facts, step: jobStep(facts), next: jobNextAction(facts) };
+    })
+    .filter((r) =>
+      f === "billing" ? r.step === "billing" : f === "payment" ? r.step === "payment" : f === "closing" ? readyToClose(r.facts) : true,
+    );
 
   const qs = (patch: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
@@ -104,7 +138,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
         </form>
       </div>
 
-      {jobs.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState message="No jobs match these filters." />
       ) : (
         <Card className="overflow-x-auto p-0">
@@ -114,15 +148,14 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
                 <th className="px-4 py-3 font-medium">Job</th>
                 <th className="px-4 py-3 font-medium">Client</th>
                 <th className="px-4 py-3 font-medium">Service</th>
-                <th className="px-4 py-3 font-medium">Current stage</th>
+                <th className="px-4 py-3 font-medium">Where it is · next step</th>
                 <th className="px-4 py-3 font-medium">Responsible</th>
                 <th className="px-4 py-3 font-medium">Due</th>
                 <th className="px-4 py-3 font-medium">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {jobs.map((j) => {
-                const stage = currentStage(j.stages);
+              {rows.map(({ j, step, next }) => {
                 const docsMissing = missingRequiredDocuments(j.documents).length;
                 const sla = slaState(j);
                 return (
@@ -134,7 +167,14 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
                     <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">{j.client.name}</td>
                     <td className="px-4 py-3 text-zinc-500">{j.service.name}</td>
                     <td className="px-4 py-3 text-zinc-500">
-                      {stage?.name ?? "—"}
+                      <span className={`mr-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${STEP_STYLE[step]}`}>{STEP_LABEL[step]}</span>
+                      {next ? (
+                        <Link href={`/jobs/${j.id}${next.href ?? ""}`} className="text-xs hover:underline">
+                          {next.label}
+                        </Link>
+                      ) : (
+                        <span className="text-xs">{j.status === "CANCELLED" ? "Cancelled" : "Done"}</span>
+                      )}
                       {docsMissing > 0 && j.status !== "CANCELLED" && (
                         <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300">DOCS INCOMPLETE</span>
                       )}

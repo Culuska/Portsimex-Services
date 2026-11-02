@@ -8,6 +8,9 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { allowedRequestMoves, MANAGER_ONLY } from "@/lib/request-rules";
 import { SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
 import { Badge, Card, PageHeader } from "@/components/ui";
+import { JourneyBar, JourneyPanel, RecordChain } from "@/components/Journey";
+import { jobJourney, requestJourney } from "@/lib/journey";
+import { jobJourneySelect, journeyFactsOf } from "@/lib/jobs";
 import SimpleActionButton from "@/components/SimpleActionButton";
 import ActionForm, { fieldClass } from "@/components/ActionForm";
 import { addRequestLineAction, moveServiceRequestAction, openJobForLineAction } from "../actions";
@@ -33,7 +36,7 @@ export default async function ServiceRequestPage({ params }: { params: Promise<{
         assignedTo: true,
         createdBy: true,
         quote: true,
-        lines: { include: { service: true, job: { include: { responsible: true } } } },
+        lines: { include: { service: true, job: { select: { ...jobJourneySelect, jobNumber: true, responsible: { select: { name: true } } } } } },
       },
     }),
     activeServices(),
@@ -44,9 +47,24 @@ export default async function ServiceRequestPage({ params }: { params: Promise<{
   const moves = allowedRequestMoves(sr.status).filter((m) => isManager || !MANAGER_ONLY.includes(m));
   const canOpenJobs = ["APPROVED", "IN_PROGRESS", "WAITING", "COMPLETED"].includes(sr.status);
   const editable = !["COMPLETED", "CLOSED", "CANCELLED"].includes(sr.status);
+  const jobFacts = new Map(sr.lines.filter((l) => l.job).map((l) => [l.job!.id, journeyFactsOf(l.job!)]));
+  const journey = requestJourney({
+    status: sr.status,
+    lines: sr.lines.length,
+    linesWithoutJob: sr.lines.filter((l) => !l.job).length,
+    jobs: [...jobFacts.values()],
+  });
 
   return (
     <div>
+      <RecordChain
+        items={[
+          { label: sr.client.name, href: `/clients/${sr.clientId}` },
+          ...(sr.quote ? [{ label: sr.quote.quoteNumber, href: `/quotes/${sr.quote.id}`, sub: "quote" }] : []),
+          { label: sr.requestNumber, sub: "request" },
+          ...sr.lines.filter((l) => l.job).map((l) => ({ label: l.job!.jobNumber, href: `/jobs/${l.job!.id}`, sub: "job" })),
+        ]}
+      />
       <PageHeader
         title={sr.requestNumber}
         description={`${sr.client.name} · requested ${formatDate(sr.requestDate)}${sr.createdBy ? ` · logged by ${sr.createdBy.name}` : ""}`}
@@ -58,8 +76,7 @@ export default async function ServiceRequestPage({ params }: { params: Promise<{
         }
       />
 
-      {moves.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-2">
+      <JourneyPanel journey={journey}>
           {moves.map((m) => (
             <SimpleActionButton
               key={m}
@@ -80,12 +97,11 @@ export default async function ServiceRequestPage({ params }: { params: Promise<{
               Prepare quotation
             </Link>
           )}
-        </div>
-      )}
+      </JourneyPanel>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
-          <Card>
+          <Card id="services">
             <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">Services &amp; jobs</h2>
             <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">
               {sr.lines.map((line) => (
@@ -98,12 +114,27 @@ export default async function ServiceRequestPage({ params }: { params: Promise<{
                     </p>
                   </div>
                   {line.job ? (
-                    <div className="flex items-center gap-3">
-                      <Link href={`/jobs/${line.job.id}`} className="text-sm font-medium text-brand-600 hover:underline">
-                        {line.job.jobNumber}
-                      </Link>
-                      <span className="text-xs text-zinc-500">{line.job.responsible?.name ?? "unassigned"}</span>
-                      <Badge status={line.job.status} />
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[22rem]">
+                      <div className="flex items-center justify-end gap-3">
+                        <Link href={`/jobs/${line.job.id}`} className="text-sm font-medium text-brand-600 hover:underline">
+                          {line.job.jobNumber}
+                        </Link>
+                        <span className="text-xs text-zinc-500">{line.job.responsible?.name ?? "unassigned"}</span>
+                        <Badge status={line.job.status} />
+                      </div>
+                      {(() => {
+                        const jj = jobJourney(jobFacts.get(line.job.id)!);
+                        return (
+                          <>
+                            <JourneyBar journey={jj} compact />
+                            {jj.next && (
+                              <p className="text-right text-xs text-zinc-500">
+                                Next: <Link href={`/jobs/${line.job.id}${jj.next.href ?? ""}`} className="text-brand-600 hover:underline">{jj.next.label}</Link>
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   ) : canOpenJobs && isManager ? (
                     <SimpleActionButton

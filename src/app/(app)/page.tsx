@@ -5,7 +5,9 @@ import { hasPermission } from "@/lib/permission-catalog";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { invoiceBalance } from "@/lib/invoices";
-import { financialsOf, jobFinanceSelect } from "@/lib/jobs";
+import { financialsOf, jobFinanceSelect, jobJourneySelect, journeyFactsOf } from "@/lib/jobs";
+import { jobStep, readyToClose } from "@/lib/journey";
+import Pipeline, { type PipelineColumn } from "./Pipeline";
 import { summarize } from "@/lib/job-finance";
 import { missingRequiredDocuments, slaState } from "@/lib/job-rules";
 import { SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
@@ -34,7 +36,8 @@ export default async function DashboardPage() {
   const today = new Date(new Date().setHours(0, 0, 0, 0));
   const yearStart = new Date(today.getFullYear(), 0, 1);
 
-  const [activeJobs, myTasks, awaitingRequests, pendingExpenses, pendingPRs, invoices, balances, activeShipments, yearJobs, followUpsDue, docsExpiring] = await Promise.all([
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const [activeJobs, myTasks, awaitingRequests, pendingExpenses, invoices, balances, yearJobs, followUpsDue, docsExpiring, completedJobs, closedThisMonth] = await Promise.all([
     prisma.job.findMany({
       where: { status: { in: ["OPEN", "IN_PROGRESS", "WAITING"] }, ...scope },
       include: { client: true, service: true, responsible: true, documents: true },
@@ -46,15 +49,13 @@ export default async function DashboardPage() {
       orderBy: { dueDate: { sort: "asc", nulls: "last" } },
       take: 10,
     }),
-    prisma.serviceRequest.findMany({ where: { status: { in: ["SUBMITTED", "REVIEWED", "QUOTED"] } }, include: { client: true }, orderBy: { createdAt: "asc" }, take: 10 }),
+    prisma.serviceRequest.findMany({ where: { status: { in: ["SUBMITTED", "REVIEWED", "QUOTED"] } }, include: { client: true, _count: { select: { lines: true } } }, orderBy: { createdAt: "asc" } }),
     prisma.expense.findMany({ where: { status: "PENDING_APPROVAL" }, orderBy: { createdAt: "asc" }, take: 10 }),
-    prisma.purchaseRequest.count({ where: { status: "PENDING" } }),
-    prisma.invoice.findMany({ where: { status: { notIn: ["DRAFT", "CANCELLED"] } }, include: { items: true, payments: true } }),
+    prisma.invoice.findMany({ where: { status: { notIn: ["DRAFT", "CANCELLED"] } }, include: { items: true, payments: true, client: { select: { name: true } } }, orderBy: { dueDate: "asc" } }),
     prisma.$queryRaw<{ code: string; balance: string; kind: string | null }[]>`
       SELECT ab.code, ab.balance::text AS balance, ma.kind::text AS kind
       FROM account_balances ab LEFT JOIN money_accounts ma ON ma."accountId" = ab.account_id
       WHERE ab.code IN ('1000', '1100', '1200', '2000', '2100', '2200') OR ma.id IS NOT NULL`,
-    prisma.shipment.count({ where: { status: { notIn: ["COMPLETED", "CANCELLED"] } } }),
     prisma.job.findMany({
       where: { status: { not: "CANCELLED" }, startDate: { gte: yearStart } },
       include: { service: true, client: true, ...jobFinanceSelect },
@@ -69,6 +70,13 @@ export default async function DashboardPage() {
     prisma.jobDocument.count({
       where: { received: true, expiryDate: { not: null, lt: new Date(today.getTime() + 31 * 86_400_000) }, job: { status: { not: "CANCELLED" }, ...scope } },
     }),
+    // Work done but not yet billed / paid / closed.
+    prisma.job.findMany({
+      where: { status: "COMPLETED", ...scope },
+      select: { ...jobJourneySelect, jobNumber: true, completedAt: true, client: { select: { name: true } } },
+      orderBy: { completedAt: "asc" },
+    }),
+    prisma.job.count({ where: { status: "CLOSED", closedAt: { gte: monthStart }, ...scope } }),
   ]);
 
   const bal = (code: string) => Number(balances.find((b) => b.code === code)?.balance ?? 0);
@@ -78,17 +86,114 @@ export default async function DashboardPage() {
   const overdue = sla.filter((x) => x.s === "OVERDUE").map((x) => x.j);
   const dueToday = sla.filter((x) => x.s === "DUE_TODAY").map((x) => x.j);
   const docsPending = activeJobs.filter((j) => missingRequiredDocuments(j.documents).length > 0);
-  const countCat = (c: string) => activeJobs.filter((j) => j.service.category === c).length;
 
   const receivable = invoices.reduce((s, i) => s + Math.max(invoiceBalance(i), 0), 0);
   const unpaidCount = invoices.filter((i) => invoiceBalance(i) > 0.005).length;
+  // --- The pipeline: request -> operations -> billing -> payment -> close ---
+  const can = (p: Parameters<typeof hasPermission>[1]) => hasPermission(me.grant, p);
+  const completed = completedJobs.map((j) => ({ j, f: journeyFactsOf(j) }));
+  const toBill = completed.filter((x) => jobStep(x.f) === "billing");
+  const toClose = completed.filter((x) => readyToClose(x.f));
+  const unpaidInvoices = invoices.map((i) => ({ i, balance: invoiceBalance(i) })).filter((x) => x.balance > 0.005);
+  const columns: PipelineColumn[] = [];
+  if (can("requests.manage") || can("requests.approve")) {
+    columns.push({
+      step: 1,
+      label: "New requests",
+      who: "Manager",
+      count: awaitingRequests.length,
+      value: awaitingRequests.length ? "waiting for review / approval" : undefined,
+      items: awaitingRequests.slice(0, 4).map((r) => ({
+        href: `/service-requests/${r.id}`,
+        title: `${r.requestNumber} · ${r.client.name}`,
+        meta: `${r._count.lines} service${r._count.lines === 1 ? "" : "s"} · ${r.status.toLowerCase()} · ${formatDate(r.requestDate)}`,
+        flag: r.priority === "URGENT" ? "red" : r.priority === "HIGH" ? "amber" : undefined,
+      })),
+      viewAll: "/service-requests?f=approval",
+      empty: "No requests waiting.",
+    });
+  }
+  if (can("jobs.view")) {
+    columns.push({
+      step: 2,
+      label: "In operations",
+      who: "Operations",
+      count: activeJobs.length,
+      value: overdue.length ? `${overdue.length} overdue · ${dueToday.length} due today` : dueToday.length ? `${dueToday.length} due today` : "on schedule",
+      items: activeJobs.slice(0, 4).map((j) => {
+        const s = slaState(j);
+        return {
+          href: `/jobs/${j.id}`,
+          title: `${j.jobNumber} · ${j.client.name}`,
+          meta: `${j.service.name}${j.dueDate ? ` · due ${formatDate(j.dueDate)}` : ""}`,
+          flag: s === "OVERDUE" ? "red" : s === "DUE_TODAY" || missingRequiredDocuments(j.documents).length ? "amber" : undefined,
+        };
+      }),
+      viewAll: "/jobs",
+      empty: "No active jobs.",
+    });
+    columns.push({
+      step: 3,
+      label: "To invoice",
+      who: "Finance",
+      count: toBill.length,
+      value: (() => {
+        const costs = toBill.reduce((s, x) => s + x.f.unbilled, 0);
+        return !toBill.length ? undefined : costs > 0.005 ? `work done · ${formatCurrency(costs)} of costs to re-charge` : "work done, not billed yet";
+      })(),
+      items: toBill.slice(0, 4).map(({ j, f }) => ({
+        href: `/jobs/${j.id}#billing`,
+        title: `${j.jobNumber} · ${j.client.name}`,
+        meta: f.draftLines ? "draft invoice -- issue it" : `completed ${formatDate(j.completedAt)}`,
+      })),
+      viewAll: "/jobs?f=billing",
+      empty: "Nothing waiting to be invoiced.",
+    });
+  }
+  if (can("invoices.view")) {
+    columns.push({
+      step: 4,
+      label: "Awaiting payment",
+      who: "Finance",
+      count: unpaidInvoices.length,
+      value: unpaidInvoices.length ? `${formatCurrency(receivable)} receivable` : undefined,
+      items: unpaidInvoices.slice(0, 4).map(({ i, balance }) => ({
+        href: `/invoices/${i.id}`,
+        title: `${i.invoiceNumber} · ${i.client.name}`,
+        meta: `${formatCurrency(balance)} due ${formatDate(i.dueDate)}`,
+        flag: i.dueDate < today ? "red" : undefined,
+      })),
+      viewAll: "/invoices?f=unpaid",
+      empty: "Every issued invoice is paid.",
+    });
+  }
+  if (can("jobs.view")) {
+    columns.push({
+      step: 5,
+      label: "Ready to close",
+      who: "Manager",
+      count: toClose.length,
+      value: toClose.length ? "done, billed and paid" : undefined,
+      items: toClose.slice(0, 4).map(({ j, f }) => ({ href: `/jobs/${j.id}`, title: `${j.jobNumber} · ${j.client.name}`, meta: `${formatCurrency(f.invoiced)} paid` })),
+      viewAll: "/jobs?f=closing",
+      empty: "Nothing to close.",
+    });
+    columns.push({
+      step: 6,
+      label: "Closed",
+      who: "Manager",
+      count: closedThisMonth,
+      value: "this month",
+      items: [],
+      viewAll: "/jobs?f=closed",
+      empty: "Finished jobs appear here.",
+    });
+  }
+
   const yearRows = yearJobs.map((j) => ({ j, f: financialsOf(j) }));
   const yearTotal = summarize(yearRows.map((r) => r.f));
-  const unbilled = yearRows.reduce((s, r) => s + r.f.unbilledBillableCosts + r.f.unbilledMarkup, 0);
   const byService = SERVICE_CATEGORIES.map((c) => ({ c, ...summarize(yearRows.filter((r) => r.j.service.category === c).map((r) => r.f)) })).filter((r) => r.revenue > 0 || r.costs > 0);
   const maxRevenue = Math.max(1, ...byService.map((r) => r.revenue));
-  const completedYear = yearJobs.map((j) => slaState(j)).filter((s) => s === "COMPLETED_ON_TIME" || s === "COMPLETED_LATE");
-  const onTimePct = completedYear.length ? Math.round((completedYear.filter((s) => s === "COMPLETED_ON_TIME").length / completedYear.length) * 100) : null;
   const clientTotals = new Map<string, { name: string; rows: { invoiced: number; costs: number }[] }>();
   for (const r of yearRows) {
     const e = clientTotals.get(r.j.clientId) ?? { name: r.j.client.name, rows: [] };
@@ -101,40 +206,31 @@ export default async function DashboardPage() {
     <div>
       <PageHeader title="Dashboard" description={`Operations and finance at a glance · ${formatDate(new Date())}`} />
 
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Operations</h2>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <Tile href="/jobs" label="Open jobs" value={activeJobs.length} />
-        <Tile href="/jobs?f=today" label="Due today" value={dueToday.length} tone={dueToday.length ? "amber" : undefined} />
-        <Tile href="/jobs?f=overdue" label="Overdue jobs" value={overdue.length} tone={overdue.length ? "red" : undefined} />
-        <Tile href="/jobs" label="Pending documents" value={docsPending.length} tone={docsPending.length ? "amber" : undefined} />
-        <Tile href="/service-requests?f=approval" label="Requests to approve" value={awaitingRequests.length} />
-        <Tile href="/shipments" label="Active shipments" value={activeShipments} />
-        <Tile href="/cases?t=tax" label="Tax / government cases" value={countCat("GOVERNMENT_TAX")} />
-        <Tile href="/cases?t=immigration" label="Immigration cases" value={countCat("IMMIGRATION")} />
-        <Tile href="/jobs?cat=VEHICLE" label="Active rentals" value={countCat("VEHICLE")} />
-        <Tile href="/jobs?cat=COMMUNICATION" label="Communication requests" value={countCat("COMMUNICATION")} />
-        <Tile href="/jobs?cat=LOGISTICS" label="Logistics jobs" value={countCat("LOGISTICS")} />
-        <Tile href="/jobs?cat=TRANSPORT" label="Transport jobs" value={countCat("TRANSPORT")} />
-        <Tile href="/reminders" label="Follow-ups due" value={followUpsDue} tone={followUpsDue ? "red" : undefined} />
-        <Tile href="/reminders" label="Documents expiring (30d)" value={docsExpiring} tone={docsExpiring ? "amber" : undefined} />
-      </div>
+      <Pipeline columns={columns} />
+
+      {can("jobs.view") && (
+        <>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Needs attention</h2>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+            <Tile href="/jobs?f=overdue" label="Overdue jobs" value={overdue.length} tone={overdue.length ? "red" : undefined} />
+            <Tile href="/jobs?f=today" label="Due today" value={dueToday.length} tone={dueToday.length ? "amber" : undefined} />
+            <Tile href="/jobs" label="Missing documents" value={docsPending.length} tone={docsPending.length ? "amber" : undefined} />
+            <Tile href="/reminders" label="Follow-ups due" value={followUpsDue} tone={followUpsDue ? "red" : undefined} />
+            <Tile href="/reminders" label="Documents expiring (30d)" value={docsExpiring} tone={docsExpiring ? "amber" : undefined} />
+          </div>
+        </>
+      )}
 
       {isManager && (
         <>
           <h2 className="mb-3 mt-8 text-xs font-semibold uppercase tracking-wide text-zinc-500">Finance</h2>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
             <StatCard label={`Revenue ${today.getFullYear()}`} value={formatCurrency(yearTotal.revenue)} hint="invoiced on this year's jobs" />
-            <StatCard label="Direct costs" value={formatCurrency(yearTotal.costs)} />
             <StatCard label="Gross profit" value={formatCurrency(yearTotal.grossProfit)} hint={yearTotal.marginPercent !== null ? `${yearTotal.marginPercent}% margin` : undefined} />
-            <StatCard label="Cash on hand" value={formatCurrency(cashOnHand)} />
-            <StatCard label="Bank & mobile money" value={formatCurrency(bankBalance)} />
+            <StatCard label="Cash & bank" value={formatCurrency(cashOnHand + bankBalance)} hint={`cash ${formatCurrency(cashOnHand)}`} />
             <StatCard label="Receivables" value={formatCurrency(receivable)} hint={`${unpaidCount} unpaid invoice${unpaidCount === 1 ? "" : "s"}`} />
             <StatCard label="Payables" value={formatCurrency(bal("2000"))} hint="owed to suppliers" />
             <StatCard label="Client advances" value={formatCurrency(bal("2100"))} hint="deposits not yet used" />
-            <StatCard label="Client disbursements" value={formatCurrency(bal("1200"))} hint="paid for clients, to recover" />
-            <StatCard label="Not yet billed" value={formatCurrency(unbilled)} hint="billable costs + fees" />
-            <StatCard label="SLA on time" value={onTimePct === null ? "—" : `${onTimePct}%`} hint={`${completedYear.length} jobs completed this year`} />
-            <StatCard label="Expenses to approve" value={String(pendingExpenses.length)} hint={pendingPRs ? `+ ${pendingPRs} purchase request${pendingPRs > 1 ? "s" : ""}` : undefined} />
           </div>
         </>
       )}
@@ -142,7 +238,7 @@ export default async function DashboardPage() {
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Needs attention</h2>
+            <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Overdue &amp; due today</h2>
             <Link href="/jobs?f=overdue" className="text-sm text-brand-600 hover:underline">All overdue</Link>
           </div>
           {overdue.length + dueToday.length === 0 ? (
@@ -228,23 +324,6 @@ export default async function DashboardPage() {
                 ))}
               </ul>
             )}
-          </Card>
-        )}
-
-        {awaitingRequests.length > 0 && (
-          <Card>
-            <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">Service requests awaiting approval</h2>
-            <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">
-              {awaitingRequests.map((r) => (
-                <li key={r.id} className="flex items-center justify-between py-2">
-                  <div>
-                    <Link href={`/service-requests/${r.id}`} className="text-sm font-medium text-zinc-900 hover:underline dark:text-zinc-50">{r.requestNumber}</Link>
-                    <p className="text-xs text-zinc-500">{r.client.name}</p>
-                  </div>
-                  <Badge status={r.status} />
-                </li>
-              ))}
-            </ul>
           </Card>
         )}
 

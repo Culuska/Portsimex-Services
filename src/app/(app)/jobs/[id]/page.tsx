@@ -4,8 +4,8 @@ import { requireJobAccess } from "@/lib/session";
 import { hasPermission } from "@/lib/permission-catalog";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { detailsOf, financialsOf, jobFinanceSelect } from "@/lib/jobs";
-import { isExpenseBilled, isIssued, type InvoiceStatus } from "@/lib/job-finance";
+import { detailsOf, financialsOf, jobFinanceSelect, journeyFactsOf } from "@/lib/jobs";
+import { isExpenseBilled, type InvoiceStatus } from "@/lib/job-finance";
 import {
   closureBlockers,
   completionBlockers,
@@ -23,6 +23,8 @@ import { expiryState } from "@/lib/reminder-rules";
 import SubmissionsCard from "./SubmissionsCard";
 import { unwaiveDocumentAction, waiveDocumentAction } from "../case-actions";
 import { Badge, Card, PageHeader } from "@/components/ui";
+import { JourneyPanel, RecordChain } from "@/components/Journey";
+import { jobJourney } from "@/lib/journey";
 import SimpleActionButton from "@/components/SimpleActionButton";
 import ActionForm, { fieldClass } from "@/components/ActionForm";
 import {
@@ -108,24 +110,28 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const unbilled = costRows.filter(
     (e) => e.billingType !== "NON_BILLABLE" && e.status !== "REJECTED" && !isExpenseBilled((e.invoiceItem?.invoice.status as InvoiceStatus | undefined) ?? null),
   );
-  const issuedLines = lineRows.filter((l) => isIssued(l.invoice.status as InvoiceStatus));
-  const allPaid = issuedLines.length > 0 && fin.outstanding <= 0.005;
+  const journey = jobJourney(journeyFactsOf(job), { hasRequest: !!job.serviceRequest });
+  const jobInvoices = [...new Map(lineRows.map((l) => [l.invoice.id, l.invoice])).values()];
 
   const timeline: { label: string; state: "done" | "current" | "pending" | "skipped"; meta?: string }[] = [
-    { label: "Service request received", state: "done", meta: formatDate(job.serviceRequest?.requestDate ?? job.createdAt) },
     ...job.stages.map((s) => ({
       label: s.name,
       state: (s.status === "DONE" ? "done" : s.status === "SKIPPED" ? "skipped" : s.id === stage?.id && active ? "current" : "pending") as "done" | "current" | "pending" | "skipped",
       meta: s.completedAt ? `${formatDate(s.completedAt)}${s.completedBy ? ` · ${s.completedBy.name}` : ""}` : undefined,
     })),
     { label: "Official output received", state: missingOutput.length === 0 && job.documents.some((d) => d.isOutput) ? "done" : "pending" },
-    { label: "Invoiced", state: fin.invoiced > 0 && fin.unbilledBillableCosts === 0 ? "done" : fin.invoiced > 0 || fin.draftLines > 0 ? "current" : "pending", meta: fin.invoiced > 0 ? formatCurrency(fin.invoiced) : undefined },
-    { label: "Paid", state: allPaid ? "done" : fin.paid > 0 ? "current" : "pending", meta: fin.paid > 0 ? formatCurrency(fin.paid) : undefined },
-    { label: "Closed", state: job.status === "CLOSED" ? "done" : "pending", meta: job.closedAt ? formatDate(job.closedAt) : undefined },
   ];
 
   return (
     <div>
+      <RecordChain
+        items={[
+          { label: job.client.name, href: `/clients/${job.clientId}` },
+          ...(job.serviceRequest ? [{ label: job.serviceRequest.requestNumber, href: `/service-requests/${job.serviceRequest.id}`, sub: "request" }] : []),
+          { label: job.jobNumber, sub: "job" },
+          ...jobInvoices.map((inv) => ({ label: inv.invoiceNumber, href: `/invoices/${inv.id}`, sub: inv.status === "DRAFT" ? "draft invoice" : "invoice" })),
+        ]}
+      />
       <PageHeader
         title={job.jobNumber}
         description={`${job.title} · ${job.service.name} (${SERVICE_CATEGORY_LABELS[job.service.category]})`}
@@ -154,8 +160,8 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         </p>
       )}
 
-      {/* Status actions */}
-      <div className="mb-6 flex flex-wrap items-start gap-2">
+      {/* Where the job is in the journey, what to do next, and the status actions */}
+      <JourneyPanel journey={journey}>
         {job.status === "OPEN" && <SimpleActionButton action={moveJobAction.bind(null, job.id, "START")} label="Start work" className={btnPrimary} />}
         {(job.status === "OPEN" || job.status === "IN_PROGRESS") && <SimpleActionButton action={moveJobAction.bind(null, job.id, "WAIT")} label="Put on hold (waiting)" className={btn} />}
         {job.status === "WAITING" && <SimpleActionButton action={moveJobAction.bind(null, job.id, "RESUME")} label="Resume" className={btnPrimary} />}
@@ -164,21 +170,24 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         )}
         {job.status === "COMPLETED" && isManager && (
           <>
-            <SimpleActionButton action={moveJobAction.bind(null, job.id, "CLOSE")} label="Close job" className={btnGreen} confirmMessage="Close this job? Closed jobs can't be reopened." />
+            {/* Closing is offered once the job is billed and paid (the server enforces the same rule). */}
+            {toClose.length === 0 && (
+              <SimpleActionButton action={moveJobAction.bind(null, job.id, "CLOSE")} label="Close job" className={btnGreen} confirmMessage="Close this job? Closed jobs can't be reopened." />
+            )}
             <SimpleActionButton action={moveJobAction.bind(null, job.id, "REOPEN")} label="Reopen" className={btn} />
           </>
         )}
         {isManager && (active || job.status === "OPEN") && (
           <details className="relative">
             <summary className={`${btn} cursor-pointer list-none text-red-700 dark:text-red-400`}>Cancel job…</summary>
-            <div className="absolute z-10 mt-2 w-72 rounded-md border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="absolute right-0 z-10 mt-2 w-72 rounded-md border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
               <ActionForm action={cancelJobAction.bind(null, job.id)} submitLabel="Cancel job" confirmMessage="Cancel this job?">
                 <input name="reason" required placeholder="Reason" className={fieldClass} />
               </ActionForm>
             </div>
           </details>
         )}
-      </div>
+      </JourneyPanel>
       {(toComplete.length > 0 || toClose.length > 0) && (
         <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
           <p className="font-medium">{toClose.length > 0 ? "Before this job can be closed:" : "Before this job can be completed:"}</p>
@@ -193,8 +202,8 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="flex flex-col gap-6 xl:col-span-2">
           {/* Timeline */}
-          <Card>
-            <h2 className="mb-4 font-semibold text-zinc-900 dark:text-zinc-50">Workflow</h2>
+          <Card id="workflow">
+            <h2 className="mb-4 font-semibold text-zinc-900 dark:text-zinc-50">Operations -- stages</h2>
             <ol className="flex flex-col">
               {timeline.map((t, i) => {
                 const st = job.stages.find((s) => s.name === t.label && t.state === "current");
@@ -238,7 +247,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           </Card>
 
           {/* Documents */}
-          <Card>
+          <Card id="documents">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Document checklist</h2>
               <span className={`text-xs font-semibold ${missingDocs.length === 0 ? "text-emerald-600" : "text-red-600"}`}>
@@ -381,7 +390,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           </Card>
 
           {/* Costs & billing */}
-          <Card>
+          <Card id="costs">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">Costs</h2>
               {job.status !== "CLOSED" && job.status !== "CANCELLED" && (
@@ -431,7 +440,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
             )}
           </Card>
 
-          <Card>
+          <Card id="billing">
             <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">Billing</h2>
             {lineRows.length > 0 && (
               <ul className="mb-4 flex flex-col divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
