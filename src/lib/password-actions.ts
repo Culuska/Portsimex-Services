@@ -11,7 +11,7 @@ import { generateLinkToken } from "@/lib/totp";
 import { findValidResetToken } from "@/lib/auth-tokens";
 import { appBaseUrl, emailConfigured, sendEmail } from "@/lib/email";
 import { clientIp, recordEvent } from "@/lib/login";
-import { isFullAccessRole } from "@/lib/roles";
+import { isSuperAdmin } from "@/lib/roles";
 
 type State = { error: string | null; done?: boolean };
 
@@ -122,9 +122,8 @@ export async function resetPasswordAction(token: string, _prev: State, formData:
 /** An administrator acting on another account; only Super Admins may act on Super Admin accounts. */
 async function requireUserAdmin(targetId: string) {
   const me = await requireUser();
-  if (!isFullAccessRole(me.role) && !me.grant.permissions.includes("users.manage")) redirect("/no-access?need=users.manage");
+  if (!isSuperAdmin(me.role)) redirect("/no-access?need=superadmin");
   const target = await prisma.user.findUniqueOrThrow({ where: { id: targetId } });
-  if (isFullAccessRole(target.role) && !isFullAccessRole(me.role)) redirect("/no-access?need=admin");
   return { me, target };
 }
 

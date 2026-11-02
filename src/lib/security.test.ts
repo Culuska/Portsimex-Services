@@ -154,3 +154,22 @@ describe("permissions", () => {
     expect(canApproveAmount(profile("accountant"), 10)).toBe(false);
   });
 });
+
+describe("single Super Admin", () => {
+  it("only the Super Admin (ADMIN) manages users", () => {
+    expect(hasPermission(grantFor("ADMIN", null), "users.manage")).toBe(true);
+    expect(grantFor("ADMIN", null).superAdmin).toBe(true);
+  });
+  it("a Supervisor has full access except managing users", () => {
+    const g = grantFor("SUPERVISOR", null);
+    expect(g.superAdmin).toBe(false);
+    expect(hasPermission(g, "users.manage")).toBe(false);
+    expect(hasPermission(g, "finance.journal")).toBe(true);
+    expect(hasPermission(g, "settings.manage")).toBe(true);
+  });
+  it("a staff role can never carry user management", () => {
+    const g = grantFor("STAFF", { permissions: ["users.manage", "jobs.view"], jobCategories: [], assignedJobsOnly: false, approvalLimit: null });
+    expect(hasPermission(g, "users.manage")).toBe(false);
+    expect(hasPermission(g, "jobs.view")).toBe(true);
+  });
+});

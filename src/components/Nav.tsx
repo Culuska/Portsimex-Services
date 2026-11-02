@@ -134,7 +134,9 @@ export default function Nav({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const allowed = (l: NavLink) => fullAccess || !l.anyOf || l.anyOf.some((p) => permissions.includes(p));
+  // "Users & Roles" is for the Super Admin only, even among full-access accounts.
+  const allowed = (l: NavLink) =>
+    l.anyOf?.includes("users.manage") ? permissions.includes("users.manage") : fullAccess || !l.anyOf || l.anyOf.some((p) => permissions.includes(p));
   const groups = GROUPS.map((g) => ({ ...g, links: g.links.filter(allowed) })).filter((g) => g.links.length > 0);
   const all = groups.flatMap((g) => g.links);
 

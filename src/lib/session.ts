@@ -4,7 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@/lib/roles";
-import { isFullAccessRole } from "@/lib/roles";
+import { isFullAccessRole, isSuperAdmin } from "@/lib/roles";
 import { canAccessJob, grantFor, hasPermission, type Grant, type Permission } from "@/lib/permission-catalog";
 import { sessionExpired } from "@/lib/security-rules";
 import { getSettings } from "@/lib/settings";
@@ -52,7 +52,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       user.role,
       p ? { permissions: p.permissions, jobCategories: p.jobCategories, assignedJobsOnly: p.assignedJobsOnly, approvalLimit: p.approvalLimit === null ? null : Number(p.approvalLimit) } : null,
     ),
-    profileName: user.role === "ADMIN" ? "Admin" : user.role === "SUPERVISOR" ? "Supervisor" : (p?.name ?? (user.role === "STAFF" ? "Staff" : null)),
+    profileName: user.role === "ADMIN" ? "Super Admin" : user.role === "SUPERVISOR" ? "Supervisor" : (p?.name ?? (user.role === "STAFF" ? "Staff" : null)),
     mustChangePassword: user.mustChangePassword,
     mfaEnabled: !!user.mfaEnabledAt,
   };
@@ -83,6 +83,13 @@ export async function requirePermission(...anyOf: Permission[]) {
 export async function can(permission: Permission) {
   const user = await getCurrentUser();
   return !!user && hasPermission(user.grant, permission);
+}
+
+/** The single Super Admin (owner) only -- users, roles and deleting data. */
+export async function requireSuperAdmin() {
+  const user = await requireUser();
+  if (!isSuperAdmin(user.role)) redirect("/no-access?need=superadmin");
+  return user;
 }
 
 export async function requireAdmin() {

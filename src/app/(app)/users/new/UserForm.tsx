@@ -6,9 +6,9 @@ type ActionState = { error: string | null };
 type UserFormAction = (state: ActionState, formData: FormData) => Promise<ActionState>;
 
 const ROLE_LABELS: Record<string, string> = {
-  STAFF: "Staff (permissions from a job-title role)",
-  SUPERVISOR: "Supervisor (Super Admin)",
-  ADMIN: "Admin (Super Admin)",
+  STAFF: "Staff (access from a permission role)",
+  SUPERVISOR: "Supervisor (full access, except users and deleting)",
+  ADMIN: "Super Admin (owner -- only one)",
   MINISTRY_REGISTRAR: "Ministry Registrar",
   MINISTRY_OFFICER: "Ministry Officer",
   VENDOR: "Vendor",
@@ -19,9 +19,9 @@ const ROLE_PERMISSIONS: Record<string, string> = {
   STAFF:
     "What they can do comes from the job-title role chosen below (e.g. Finance Manager, Immigration Officer). With no job-title role they keep the original staff access: daily operations, invoices and expenses, but no approvals, users or accounting.",
   SUPERVISOR:
-    "Full access to everything in the app, with no restrictions -- identical to Admin, including Users, Accounting/Ledger, and every approval step (expense approval, starting a shipment from an accepted quote, ministry registry).",
+    "Full access to all operations, finance, accounting and approvals -- but cannot create, change or delete user accounts or roles, and cannot delete any data. Those are for the Super Admin only.",
   ADMIN:
-    "Full access to everything in the app, with no restrictions -- including Users, Accounting/Ledger, and every approval step (expense approval, starting a shipment from an accepted quote, ministry registry).",
+    "The owner account: everything in the app, and the only one who can create, change or delete users and roles, and delete data. There is only one Super Admin.",
   MINISTRY_REGISTRAR:
     "Limited to the Ministries section only: registering ministries and setting their position in a shipment type's approval chain. No access to shipments, invoices, or other company data.",
   MINISTRY_OFFICER:
@@ -61,8 +61,10 @@ export default function UserForm({
   });
   const [role, setRole] = useState(defaultValues?.role ?? "STAFF");
   const [profileId, setProfileId] = useState(defaultValues?.accessProfileId ?? "");
-  const lockedSuperAdmin = !canGrantSuperAdmin && (defaultValues?.role === "ADMIN" || defaultValues?.role === "SUPERVISOR");
-  const roleOptions = Object.entries(ROLE_LABELS).filter(([value]) => canGrantSuperAdmin || lockedSuperAdmin || (value !== "ADMIN" && value !== "SUPERVISOR"));
+  // Super Admin is offered only on the Super Admin's own account (there is just one).
+  const roleOptions = Object.entries(ROLE_LABELS).filter(
+    ([value]) => (value !== "ADMIN" || defaultValues?.role === "ADMIN") && (value !== "SUPERVISOR" || canGrantSuperAdmin || defaultValues?.role === "SUPERVISOR"),
+  );
   const profile = profiles.find((p) => p.id === profileId);
   const isEdit = Boolean(defaultValues);
 

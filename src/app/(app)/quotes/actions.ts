@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { nextInvoiceNumber } from "@/lib/numbering";
-import { requirePermission } from "@/lib/session";
+import { requirePermission, requireSuperAdmin } from "@/lib/session";
 import { SERVICE_TYPES } from "@/lib/services";
 
 const quoteStatuses = ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"] as const;
@@ -158,7 +158,7 @@ export async function convertQuoteToInvoiceAction(id: string) {
 }
 
 export async function deleteDraftQuoteAction(id: string) {
-  await requirePermission("quotes.manage");
+  await requireSuperAdmin();
   const quote = await prisma.quote.findUnique({ where: { id } });
   if (!quote || quote.status !== "DRAFT") {
     return;

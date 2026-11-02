@@ -12,10 +12,17 @@ export default async function UsersPage() {
     include: { ministry: true, vendorClient: true, accessProfile: true },
   });
 
+  const superAdmins = users.filter((u) => u.role === "ADMIN");
+
   return (
     <div>
       <PageHeader title="Users & Roles" description="Who can sign in, and what each person is allowed to do" action={<ButtonLink href="/users/new">New user</ButtonLink>} />
       <UsersTabs active="users" />
+      {superAdmins.length > 1 && (
+        <p className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          There should be only one Super Admin, but {superAdmins.length} accounts have it ({superAdmins.map((u) => u.name).join(", ")}). Open the others and change their access type to Supervisor.
+        </p>
+      )}
       <Card className="overflow-x-auto p-0">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-zinc-200 dark:border-zinc-800 text-zinc-500">
@@ -40,7 +47,7 @@ export default async function UsersPage() {
                   </p>
                 </td>
                 <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
-                  {u.role === "ADMIN" ? "Admin (full access)" : u.role === "SUPERVISOR" ? "Supervisor (full access)" : u.role === "STAFF" ? (u.accessProfile?.name ?? "Staff (original access)") : u.role.replace(/_/g, " ").toLowerCase()}
+                  {u.role === "ADMIN" ? "Super Admin" : u.role === "SUPERVISOR" ? "Supervisor" : u.role === "STAFF" ? (u.accessProfile?.name ?? "Staff (original access)") : u.role.replace(/_/g, " ").toLowerCase()}
                   {(u.ministry || u.vendorClient) && <p className="text-xs text-zinc-500">{u.ministry?.name ?? u.vendorClient?.name}</p>}
                 </td>
                 <td className="px-4 py-3 text-zinc-500">{u.mfaEnabledAt ? "On" : "Off"}</td>

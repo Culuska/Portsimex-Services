@@ -10,7 +10,9 @@ export default async function NoAccessPage({ searchParams }: { searchParams: Pro
       ? "This amount is above the approval limit for your role -- it needs someone with a higher limit."
       : need === "job"
       ? "This job belongs to a service line or team you don't work on."
-      : need === "admin" || need === "users.manage"
+      : need === "superadmin" || need === "users.manage"
+        ? "Only the Super Admin can do this: creating, changing or deleting users and roles, and deleting data."
+        : need === "admin"
         ? "This is for administrators."
         : needs.length
           ? `It needs the "${needs.map((p) => PERMISSION_LABELS[p]).join('" or "')}" permission.`

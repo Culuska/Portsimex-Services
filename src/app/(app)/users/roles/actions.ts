@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/session";
 import { isFullAccessRole } from "@/lib/roles";
 import { audit } from "@/lib/audit";
-import { isPermission, type Permission } from "@/lib/permission-catalog";
+import { isPermission, SUPER_ADMIN_ONLY, type Permission } from "@/lib/permission-catalog";
 import { SERVICE_CATEGORIES } from "@/lib/service-templates";
 
 type State = { error: string | null };
@@ -17,7 +17,8 @@ export async function saveProfileAction(id: string | null, _prev: State, formDat
   const me = await requirePermission("users.manage");
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Give the role a name." };
-  const permissions = formData.getAll("permissions").map(String).filter(isPermission);
+  // Managing users is never part of a role -- it belongs to the Super Admin alone.
+  const permissions = formData.getAll("permissions").map(String).filter(isPermission).filter((p) => !SUPER_ADMIN_ONLY.includes(p));
   const jobCategories = formData
     .getAll("jobCategories")
     .map(String)

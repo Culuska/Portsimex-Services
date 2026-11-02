@@ -32,6 +32,14 @@ function assertScopeForRole(data: { role: string; ministryId?: string; vendorCli
   return null;
 }
 
+// There is only one Super Admin (the ADMIN account): nobody else can be made
+// one. Managing users is itself Super-Admin-only (see SUPER_ADMIN_ONLY).
+async function secondSuperAdminError(targetRole: string, targetId: string | null) {
+  if (targetRole !== "ADMIN") return null;
+  const other = await prisma.user.findFirst({ where: { role: "ADMIN", ...(targetId ? { NOT: { id: targetId } } : {}) }, select: { name: true } });
+  return other ? `There can be only one Super Admin (${other.name}). Choose Supervisor for full access without managing users or deleting data.` : null;
+}
+
 // Only a Super Admin can create or change Super Admins -- otherwise anyone
 // with "manage users" could promote themselves.
 function escalationError(me: CurrentUser, targetRole: string, currentRole?: string) {
@@ -67,7 +75,7 @@ export async function createUserAction(_prevState: { error: string | null }, for
   const parsed = parse(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
-  const scopeError = assertScopeForRole(d) ?? escalationError(me, d.role);
+  const scopeError = assertScopeForRole(d) ?? escalationError(me, d.role) ?? (await secondSuperAdminError(d.role, null));
   if (scopeError) return { error: scopeError };
   const problem = checkPassword(d.password, { email: d.email, name: d.name });
   if (problem) return { error: `Temporary password: ${problem}` };
@@ -106,7 +114,7 @@ export async function updateUserAction(id: string, _prevState: { error: string |
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
   const before = await prisma.user.findUniqueOrThrow({ where: { id } });
-  const scopeError = assertScopeForRole(d) ?? escalationError(me, d.role, before.role);
+  const scopeError = assertScopeForRole(d) ?? escalationError(me, d.role, before.role) ?? (await secondSuperAdminError(d.role, id));
   if (scopeError) return { error: scopeError };
   if (me.id === id && d.role !== before.role) return { error: "You can't change your own role." };
   if (d.password) {

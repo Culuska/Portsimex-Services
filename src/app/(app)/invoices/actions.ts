@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/session";
+import { requirePermission, requireSuperAdmin } from "@/lib/session";
 import { recognizeInvoiceRevenue, recordAdvanceReceipt, recordInvoicePaymentCash, reverseInvoiceRevenue } from "@/lib/ledger";
 import { nextFinanceNumber, nextInvoiceNumber } from "@/lib/numbering";
 import { invoiceBalance, invoiceGrandTotal, invoiceTotals } from "@/lib/invoices";
@@ -331,7 +331,7 @@ export async function applyAdvanceAction(id: string, _prev: State, formData: For
 }
 
 export async function deleteDraftInvoiceAction(id: string) {
-  await requirePermission("invoices.manage");
+  await requireSuperAdmin();
   const invoice = await prisma.invoice.findUnique({ where: { id } });
   if (!invoice || invoice.status !== "DRAFT") {
     return;

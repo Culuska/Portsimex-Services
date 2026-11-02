@@ -18,3 +18,10 @@ export type Role = (typeof ROLES)[number];
 export function isFullAccessRole(role: string): boolean {
   return role === "ADMIN" || role === "SUPERVISOR";
 }
+
+// There is exactly one Super Admin: the ADMIN account (the owner). Only it
+// may create, change or delete user accounts and roles, and delete any data.
+// A Supervisor has full access to everything else.
+export function isSuperAdmin(role: string): boolean {
+  return role === "ADMIN";
+}

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { requireAdmin, requirePermission } from "@/lib/session";
+import { requirePermission, requireSuperAdmin } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { wipeTestData } from "@/lib/test-data";
 
@@ -49,7 +49,7 @@ export async function saveSettingsAction(_prev: { error: string | null }, formDa
 // ---------------------------------------------------------------------------
 
 export async function clearTestDataAction(_prev: { error: string | null; done?: boolean }, formData: FormData): Promise<{ error: string | null; done?: boolean }> {
-  const me = await requireAdmin();
+  const me = await requireSuperAdmin();
   if (String(formData.get("confirm") ?? "").trim() !== "CLEAR") return { error: 'Type CLEAR (in capitals) to confirm.' };
   const user = await prisma.user.findUniqueOrThrow({ where: { id: me.id } });
   if (!(await bcrypt.compare(String(formData.get("password") ?? ""), user.passwordHash))) return { error: "Your password is not correct." };

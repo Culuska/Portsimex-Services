@@ -1,5 +1,6 @@
 import { hasPermission } from "@/lib/permission-catalog";
 import { requirePermission } from "@/lib/session";
+import { isSuperAdmin } from "@/lib/roles";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -143,7 +144,7 @@ export default async function QuoteDetailPage({
                 Update
               </button>
             </form>
-            {quote.status === "DRAFT" && (
+            {quote.status === "DRAFT" && isSuperAdmin(session.role) && (
               <form action={boundDelete} className="mt-3">
                 <button type="submit" className="text-sm text-red-600 hover:underline">
                   Delete draft quote

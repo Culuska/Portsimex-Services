@@ -1,4 +1,5 @@
 import { requirePermission } from "@/lib/session";
+import { isSuperAdmin } from "@/lib/roles";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -24,7 +25,7 @@ export default async function InvoiceDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requirePermission("invoices.view");
+  const me = await requirePermission("invoices.view");
   const { id } = await params;
   const invoice = await prisma.invoice.findUnique({
     where: { id },
@@ -184,11 +185,13 @@ export default async function InvoiceDetailPage({
                       Issue invoice
                     </button>
                   </form>
-                  <form action={boundDelete}>
-                    <button type="submit" className="text-sm text-red-600 hover:underline">
-                      Delete draft invoice
-                    </button>
-                  </form>
+                  {isSuperAdmin(me.role) && (
+                    <form action={boundDelete}>
+                      <button type="submit" className="text-sm text-red-600 hover:underline">
+                        Delete draft invoice
+                      </button>
+                    </form>
+                  )}
                 </div>
               </div>
             )}

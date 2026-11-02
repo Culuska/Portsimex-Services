@@ -289,8 +289,13 @@ export const DEFAULT_PROFILES: ProfileTemplate[] = [
   },
 ];
 
+// Only the Super Admin holds these -- never a Supervisor or a staff role.
+export const SUPER_ADMIN_ONLY: Permission[] = ["users.manage"];
+
 export type Grant = {
   fullAccess: boolean;
+  /** The single Super Admin (owner): users, roles and deleting data. */
+  superAdmin: boolean;
   permissions: Permission[];
   jobCategories: JobCategory[];
   assignedJobsOnly: boolean;
@@ -298,7 +303,8 @@ export type Grant = {
 };
 
 /**
- * What a user may do: Super Admins (ADMIN / SUPERVISOR) everything; staff
+ * What a user may do: the Super Admin (ADMIN) everything; a Supervisor
+ * everything except managing users / roles and deleting data; staff
  * from their access profile (or the legacy staff set when they have none);
  * portal roles (ministry, vendor, logistics) nothing in the back office.
  */
@@ -306,16 +312,21 @@ export function grantFor(
   role: string,
   profile: { permissions: string[]; jobCategories: string[]; assignedJobsOnly: boolean; approvalLimit: number | null } | null,
 ): Grant {
-  if (role === "ADMIN" || role === "SUPERVISOR") {
-    return { fullAccess: true, permissions: [...ALL_PERMISSIONS], jobCategories: [], assignedJobsOnly: false, approvalLimit: null };
+  if (role === "ADMIN") {
+    return { fullAccess: true, superAdmin: true, permissions: [...ALL_PERMISSIONS], jobCategories: [], assignedJobsOnly: false, approvalLimit: null };
   }
-  if (role !== "STAFF") return { fullAccess: false, permissions: [], jobCategories: [], assignedJobsOnly: false, approvalLimit: null };
+  const notOwnerOnly = (p: Permission) => !SUPER_ADMIN_ONLY.includes(p);
+  if (role === "SUPERVISOR") {
+    return { fullAccess: true, superAdmin: false, permissions: ALL_PERMISSIONS.filter(notOwnerOnly), jobCategories: [], assignedJobsOnly: false, approvalLimit: null };
+  }
+  if (role !== "STAFF") return { fullAccess: false, superAdmin: false, permissions: [], jobCategories: [], assignedJobsOnly: false, approvalLimit: null };
   if (!profile) {
-    return { fullAccess: false, permissions: [...LEGACY_STAFF_PERMISSIONS], jobCategories: [], assignedJobsOnly: false, approvalLimit: null };
+    return { fullAccess: false, superAdmin: false, permissions: [...LEGACY_STAFF_PERMISSIONS], jobCategories: [], assignedJobsOnly: false, approvalLimit: null };
   }
   return {
     fullAccess: false,
-    permissions: profile.permissions.filter(isPermission),
+    superAdmin: false,
+    permissions: profile.permissions.filter(isPermission).filter(notOwnerOnly),
     jobCategories: profile.jobCategories as JobCategory[],
     assignedJobsOnly: profile.assignedJobsOnly,
     approvalLimit: profile.approvalLimit,
@@ -323,6 +334,7 @@ export function grantFor(
 }
 
 export function hasPermission(grant: Grant, permission: Permission): boolean {
+  if (SUPER_ADMIN_ONLY.includes(permission)) return grant.superAdmin;
   return grant.fullAccess || grant.permissions.includes(permission);
 }
 
@@ -347,7 +359,7 @@ export function canApproveAmount(grant: Grant, amount: number): boolean {
 
 // Compact layout for the role editor: one row per area, short tick labels.
 // The long descriptions above stay as tooltips. Every permission appears
-// exactly once (checked by a unit test).
+// exactly once, except the Super-Admin-only ones (checked by a unit test).
 export type PermissionArea = { area: string; items: [Permission, string][] };
 export const PERMISSION_LAYOUT: { group: string; hint: string; areas: PermissionArea[] }[] = [
   {
@@ -383,7 +395,6 @@ export const PERMISSION_LAYOUT: { group: string; hint: string; areas: Permission
     hint: "Users, settings and the audit trail",
     areas: [
       { area: "Service catalog", items: [["catalog.manage", "Edit"]] },
-      { area: "Users & roles", items: [["users.manage", "Manage"]] },
       { area: "Settings", items: [["settings.manage", "Change"]] },
       { area: "Audit trail", items: [["audit.view", "View"]] },
     ],
