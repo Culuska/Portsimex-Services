@@ -17,6 +17,7 @@ export type CurrentUser = {
   ministryId: string | null;
   vendorClientId: string | null;
   grant: Grant;
+  /** Job title shown to the user: Admin, Supervisor or their role name (e.g. "Finance Manager"). */
   profileName: string | null;
   mustChangePassword: boolean;
   mfaEnabled: boolean;
@@ -51,7 +52,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       user.role,
       p ? { permissions: p.permissions, jobCategories: p.jobCategories, assignedJobsOnly: p.assignedJobsOnly, approvalLimit: p.approvalLimit === null ? null : Number(p.approvalLimit) } : null,
     ),
-    profileName: isFullAccessRole(user.role) ? "Super Admin" : (p?.name ?? (user.role === "STAFF" ? "Staff" : null)),
+    profileName: user.role === "ADMIN" ? "Admin" : user.role === "SUPERVISOR" ? "Supervisor" : (p?.name ?? (user.role === "STAFF" ? "Staff" : null)),
     mustChangePassword: user.mustChangePassword,
     mfaEnabled: !!user.mfaEnabledAt,
   };

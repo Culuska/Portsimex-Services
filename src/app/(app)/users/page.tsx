@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/session";
-import { isFullAccessRole } from "@/lib/roles";
 import { formatDate } from "@/lib/format";
 import { Badge, ButtonLink, Card, PageHeader } from "@/components/ui";
 import UsersTabs from "./UsersTabs";
@@ -41,7 +40,7 @@ export default async function UsersPage() {
                   </p>
                 </td>
                 <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
-                  {isFullAccessRole(u.role) ? "Super Admin" : u.role === "STAFF" ? (u.accessProfile?.name ?? "Staff (original access)") : u.role.replace(/_/g, " ").toLowerCase()}
+                  {u.role === "ADMIN" ? "Admin (full access)" : u.role === "SUPERVISOR" ? "Supervisor (full access)" : u.role === "STAFF" ? (u.accessProfile?.name ?? "Staff (original access)") : u.role.replace(/_/g, " ").toLowerCase()}
                   {(u.ministry || u.vendorClient) && <p className="text-xs text-zinc-500">{u.ministry?.name ?? u.vendorClient?.name}</p>}
                 </td>
                 <td className="px-4 py-3 text-zinc-500">{u.mfaEnabledAt ? "On" : "Off"}</td>

@@ -12,6 +12,8 @@ export type PipelineColumn = {
   items: PipelineItem[];
   viewAll: string;
   empty: string;
+  /** This step is the signed-in user's job -- highlighted as "Your step". */
+  mine?: boolean;
 };
 
 // The dashboard's "work pipeline": every piece of work moving left to right
@@ -24,7 +26,13 @@ export default function Pipeline({ columns }: { columns: PipelineColumn[] }) {
       </div>
       <ol className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         {columns.map((c, i) => (
-          <li key={c.label} className="relative flex flex-col rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+          <li
+            key={c.label}
+            className={`relative flex flex-col rounded-lg border bg-white dark:bg-zinc-950 ${c.mine ? "border-brand-500 ring-2 ring-brand-100 dark:ring-brand-900/60" : "border-zinc-200 dark:border-zinc-800"}`}
+          >
+            {c.mine && (
+              <span className="absolute -top-2.5 left-3 rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">Your step</span>
+            )}
             <div className="flex items-center justify-between gap-2 border-b border-zinc-100 px-3 py-2.5 dark:border-zinc-800">
               <p className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[11px] text-white">{c.step}</span>

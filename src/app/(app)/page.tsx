@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { jobScopeWhere, requireUser } from "@/lib/session";
 import { hasPermission } from "@/lib/permission-catalog";
+import { isFullAccessRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { invoiceBalance } from "@/lib/invoices";
@@ -11,7 +12,7 @@ import Pipeline, { type PipelineColumn } from "./Pipeline";
 import { summarize } from "@/lib/job-finance";
 import { missingRequiredDocuments, slaState } from "@/lib/job-rules";
 import { SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
-import { Badge, Card, EmptyState, PageHeader, StatCard } from "@/components/ui";
+import { Badge, Card, EmptyState, StatCard } from "@/components/ui";
 
 // Scoped roles land on their own portal -- this dashboard shows
 // company-wide operational and financial data that isn't appropriate for them.
@@ -202,9 +203,28 @@ export default async function DashboardPage() {
   }
   const topClients = [...clientTotals.entries()].map(([id, e]) => ({ id, name: e.name, ...summarize(e.rows) })).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
 
+  // Highlight the pipeline steps this person acts on (not for Admins, who do everything).
+  const STEP_PERMISSION: Record<string, Parameters<typeof hasPermission>[1]> = {
+    "New requests": "requests.approve",
+    "In operations": "jobs.manage",
+    "To invoice": "invoices.manage",
+    "Awaiting payment": "payments.record",
+    "Ready to close": "jobs.supervise",
+  };
+  if (!isFullAccessRole(me.role)) for (const c of columns) c.mine = !!STEP_PERMISSION[c.label] && can(STEP_PERMISSION[c.label]);
+  const mySteps = columns.filter((c) => c.mine).map((c) => c.label.toLowerCase());
+  const myStepsLabel = mySteps.length ? mySteps.join(", ") : null;
+
   return (
     <div>
-      <PageHeader title="Dashboard" description={`Operations and finance at a glance · ${formatDate(new Date())}`} />
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Welcome, {me.name.split(" ")[0]}</h1>
+        <p className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
+          <span className="rounded-full bg-brand-600 px-2.5 py-0.5 text-xs font-semibold text-white">{me.profileName ?? "Staff"}</span>
+          {myStepsLabel && <span>Your steps are marked below: {myStepsLabel}.</span>}
+          <span className="text-zinc-400">· {formatDate(new Date())}</span>
+        </p>
+      </div>
 
       <Pipeline columns={columns} />
 

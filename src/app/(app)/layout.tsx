@@ -79,7 +79,12 @@ export default async function AppLayout({
           </Link>
           <Link href="/account" className="block rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800">
             <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">{me.name}</p>
-            <p className="text-xs text-zinc-500">{me.profileName ?? me.role} · My account</p>
+            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
+              <span className="rounded-full bg-brand-100 px-2 py-0.5 font-semibold text-brand-800 dark:bg-brand-900/40 dark:text-brand-200">
+                {me.profileName ?? me.role.replace(/_/g, " ").toLowerCase()}
+              </span>
+              My account
+            </p>
           </Link>
           <div className="mt-2">
             <SignOutButton />
