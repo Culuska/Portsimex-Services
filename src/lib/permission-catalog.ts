@@ -344,3 +344,48 @@ export function canApproveAmount(grant: Grant, amount: number): boolean {
   if (!hasPermission(grant, "expenses.approve")) return false;
   return grant.approvalLimit === null || amount <= grant.approvalLimit + 0.005;
 }
+
+// Compact layout for the role editor: one row per area, short tick labels.
+// The long descriptions above stay as tooltips. Every permission appears
+// exactly once (checked by a unit test).
+export type PermissionArea = { area: string; items: [Permission, string][] };
+export const PERMISSION_LAYOUT: { group: string; hint: string; areas: PermissionArea[] }[] = [
+  {
+    group: "Operations",
+    hint: "Requests, jobs, clients and purchasing",
+    areas: [
+      { area: "Service requests", items: [["requests.manage", "Create / edit"], ["requests.approve", "Approve"]] },
+      { area: "Jobs", items: [["jobs.view", "View"], ["jobs.manage", "Work on"], ["jobs.supervise", "Supervise"]] },
+      { area: "Gov. submissions", items: [["cases.manage", "Record"]] },
+      { area: "Clients", items: [["clients.view", "View"], ["clients.manage", "Add / edit"]] },
+      { area: "Quotations", items: [["quotes.manage", "Create / send"]] },
+      { area: "Shipments", items: [["shipments.manage", "Manage"]] },
+      { area: "Purchase requests", items: [["purchases.manage", "Raise"], ["purchases.approve", "Approve"]] },
+      { area: "Suppliers", items: [["vendors.manage", "Add / edit"]] },
+      { area: "Gov. agencies", items: [["agencies.manage", "Manage"]] },
+    ],
+  },
+  {
+    group: "Finance",
+    hint: "Invoices, payments, expenses and reports",
+    areas: [
+      { area: "Invoices", items: [["invoices.view", "View"], ["invoices.manage", "Create / issue"], ["invoices.cancel", "Cancel"]] },
+      { area: "Client payments", items: [["payments.record", "Record"], ["payments.authorize", "Authorize large"]] },
+      { area: "Expenses", items: [["expenses.view", "View"], ["expenses.create", "Record"], ["expenses.approve", "Approve"], ["expenses.pay", "Pay"]] },
+      { area: "Supplier bills", items: [["bills.manage", "Record"], ["bills.pay", "Pay"]] },
+      { area: "Finance overview", items: [["finance.view", "View"], ["finance.refunds", "Refund advances"]] },
+      { area: "Bank & cash", items: [["finance.banking", "Manage"], ["finance.journal", "Journal entries"]] },
+      { area: "Reports", items: [["reports.financial", "Financial"], ["reports.operational", "Profitability"]] },
+    ],
+  },
+  {
+    group: "Administration",
+    hint: "Users, settings and the audit trail",
+    areas: [
+      { area: "Service catalog", items: [["catalog.manage", "Edit"]] },
+      { area: "Users & roles", items: [["users.manage", "Manage"]] },
+      { area: "Settings", items: [["settings.manage", "Change"]] },
+      { area: "Audit trail", items: [["audit.view", "View"]] },
+    ],
+  },
+];

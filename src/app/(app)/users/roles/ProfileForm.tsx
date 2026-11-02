@@ -1,5 +1,6 @@
 import ActionForm, { fieldClass } from "@/components/ActionForm";
-import { PERMISSION_GROUPS } from "@/lib/permission-catalog";
+import { PERMISSION_LAYOUT } from "@/lib/permission-catalog";
+import PermissionGroup from "./PermissionGroup";
 import { SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
 
 type State = { error: string | null };
@@ -25,19 +26,12 @@ export default function ProfileForm({
           <input name="description" defaultValue={profile?.description ?? ""} className={fieldClass} />
         </label>
       </div>
-      {PERMISSION_GROUPS.map((g) => (
-        <fieldset key={g.group} className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
-          <legend className="px-1 text-sm font-semibold">{g.group}</legend>
-          <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
-            {Object.entries(g.permissions).map(([key, label]) => (
-              <label key={key} className="flex items-start gap-2 text-sm">
-                <input type="checkbox" name="permissions" value={key} defaultChecked={profile?.permissions.includes(key)} className="mt-0.5" />
-                <span>{label}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ))}
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-zinc-500">Tick what this role may do. Hover a tick for the full description.</p>
+        {PERMISSION_LAYOUT.map((g) => (
+          <PermissionGroup key={g.group} group={g.group} hint={g.hint} areas={g.areas} granted={profile?.permissions ?? []} />
+        ))}
+      </div>
       <fieldset className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
         <legend className="px-1 text-sm font-semibold">Which jobs</legend>
         <p className="mb-2 text-xs text-zinc-500">Tick the service lines this role works on. Leave all unticked for every service line.</p>
