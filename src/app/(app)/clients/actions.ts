@@ -56,12 +56,15 @@ function parseClientForm(formData: FormData) {
     [];
   for (const service of parsed.data.services) {
     if (!(RATE_BASED_SERVICE_TYPES as readonly string[]).includes(service)) continue;
-    const rate = Number(formData.get(`rate_${service}`));
-    if (!Number.isFinite(rate) || rate < 0) {
+    // The agreed rate is optional: leave it blank and add it later.
+    const raw = String(formData.get(`rate_${service}`) ?? "").trim();
+    if (raw === "") continue;
+    const rate = Number(raw);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 999.99) {
       return {
         success: false as const,
         error: {
-          issues: [{ message: `Enter an agreed rate for ${service.replace(/_/g, " ")}` }],
+          issues: [{ message: `The rate for ${service.replace(/_/g, " ").toLowerCase()} must be a number between 0 and 999.99, or left blank` }],
         },
       };
     }

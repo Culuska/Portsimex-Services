@@ -155,7 +155,8 @@ export default function ClientForm({
             Rate-based services
           </p>
           <p className="mb-2 text-xs text-zinc-500">
-            Billed at market cost + the agreed rate below, tied to a Purchase Request.
+            Billed at market cost + the agreed rate below, tied to a Purchase Request. The rate is
+            optional -- leave it blank if it isn&apos;t agreed yet.
           </p>
           <div className="flex flex-col gap-2">
             {RATE_BASED_SERVICE_TYPES.map((service) => (
@@ -177,9 +178,9 @@ export default function ClientForm({
                       name={`rate_${service}`}
                       type="number"
                       min="0"
+                      max="999.99"
                       step="0.01"
-                      required
-                      placeholder="Rate %"
+                      placeholder="Optional"
                       defaultValue={defaultValues?.serviceRates?.[service] ?? ""}
                       className="w-24 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-brand-500"
                     />

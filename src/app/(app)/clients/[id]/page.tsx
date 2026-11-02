@@ -8,7 +8,7 @@ import { invoiceBalance, invoiceGrandTotal, invoiceNetOfTax, invoicePaid } from 
 import { financialsOf, jobFinanceSelect } from "@/lib/jobs";
 import { clientCredits } from "@/lib/finance";
 import { SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
-import { AGREEMENT_TYPE_LABELS, SERVICE_TYPE_LABELS } from "@/lib/services";
+import { AGREEMENT_TYPE_LABELS, RATE_BASED_SERVICE_TYPES, SERVICE_TYPE_LABELS } from "@/lib/services";
 import ClientForm from "../ClientForm";
 import NoteForm from "../NoteForm";
 import FollowUpForm from "../FollowUpForm";
@@ -209,7 +209,11 @@ export default async function ClientDetailPage({
                   <li key={s} className="flex justify-between py-1.5">
                     <span>{SERVICE_TYPE_LABELS[s]}</span>
                     <span className="text-zinc-500">
-                      {serviceRates[s] ? `${serviceRates[s]}% markup` : "Flat quote"}
+                      {serviceRates[s]
+                        ? `${serviceRates[s]}% markup`
+                        : RATE_BASED_SERVICE_TYPES.includes(s)
+                          ? "Rate not set yet"
+                          : "Flat quote"}
                     </span>
                   </li>
                 ))}
