@@ -20,7 +20,8 @@ import {
   isJobActive,
   JobRuleError,
 } from "@/lib/job-rules";
-import { parseFields } from "@/lib/service-templates";
+import { parseFields, parseTasks } from "@/lib/service-templates";
+import { FREIGHT_MODES, freightKindOf, freightProcedure, isFreightMode, jobFields, jobFreightMode, procedureLabel } from "@/lib/freight-procedures";
 import { dateValue, fillEmptyDetails } from "@/lib/case-details";
 import { STAGE_EVENTS, stagesToAutoComplete } from "@/lib/case-status";
 
@@ -426,7 +427,7 @@ export async function updateJobAction(jobId: string, _prev: State, formData: For
 
   // Service-specific fields: validated against the service's field list.
   const details: Record<string, string | number | null> = {};
-  for (const field of parseFields(job.service.fields)) {
+  for (const field of jobFields(job.service.code, parseFields(job.service.fields), detailsOf(job.details))) {
     const raw = String(formData.get(`field_${field.key}`) ?? "").trim();
     if (raw === "") {
       details[field.key] = null;
@@ -585,5 +586,98 @@ export async function invoiceJobAction(jobId: string, _prev: State, formData: Fo
   refresh(jobId);
   revalidatePath(`/invoices/${invoice.id}`);
   revalidatePath("/invoices");
+  return ok;
+}
+
+// ---------------------------------------------------------------------------
+// Freight route: Airport or Seaport procedure
+// ---------------------------------------------------------------------------
+
+// Replaces a freight job's stages, document checklist, open template tasks
+// and shipment fields with the standard Airport or Seaport procedure.
+// Documents already received or waived are always kept. Once work has
+// started (a stage done or skipped) only a manager can switch, and the
+// stages restart from the first step of the new procedure.
+export async function setFreightRouteAction(jobId: string, mode: string): Promise<State> {
+  const user = await requireJobAccess(jobId, "jobs.manage");
+  if (!isFreightMode(mode)) return { error: "Choose Airport or Seaport." };
+  const job = await prisma.job.findUniqueOrThrow({ where: { id: jobId }, include: { stages: true, documents: true, tasks: true, service: true } });
+  const kind = freightKindOf(job.service.code);
+  if (!kind) return { error: "This service doesn't follow an airport / seaport procedure." };
+  if (!isJobActive(job.status)) return { error: `The job is ${job.status.toLowerCase()}.` };
+  const details = detailsOf(job.details);
+  const current = jobFreightMode(details);
+  if (current === mode) return { error: "The job already follows that procedure." };
+  const started = job.stages.some((st) => st.status === "DONE" || st.status === "SKIPPED");
+  if (started && !hasPermission(user.grant, "jobs.supervise")) {
+    return { error: "Work has already started on this job -- ask a manager to change the route (the stages restart)." };
+  }
+
+  const proc = freightProcedure(kind, mode);
+  const now = new Date();
+  const key = (n: string) => n.trim().toLowerCase();
+  const newDocNames = new Set(proc.documents.map((d) => key(d.name)));
+  // Open checklist items from the generic template or the other route are replaced.
+  const replaceableTasks = new Set(
+    [...parseTasks(job.service.tasks), ...FREIGHT_MODES.flatMap((m) => freightProcedure(kind, m).tasks)].map((t) => key(t.title)),
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await tx.jobStage.deleteMany({ where: { jobId } });
+    await tx.jobStage.createMany({
+      data: proc.stages.map((st, i) => ({
+        jobId,
+        position: i,
+        name: st.name,
+        requiresDocuments: st.requiresDocuments ?? false,
+        status: i === 0 ? "IN_PROGRESS" : "PENDING",
+        startedAt: i === 0 ? now : null,
+      })),
+    });
+
+    for (const d of job.documents) {
+      const kept = d.received || d.waived || !!d.fileUrl;
+      const inNew = newDocNames.has(key(d.name));
+      if (!kept && !inNew) await tx.jobDocument.delete({ where: { id: d.id } });
+      // A received document the new procedure doesn't list no longer blocks anything.
+      else if (kept && !inNew && (d.required || d.isOutput)) await tx.jobDocument.update({ where: { id: d.id }, data: { required: false, isOutput: false } });
+    }
+    const have = new Set(job.documents.filter((d) => d.received || d.waived || d.fileUrl || newDocNames.has(key(d.name))).map((d) => key(d.name)));
+    for (const d of proc.documents) {
+      const existing = job.documents.find((x) => key(x.name) === key(d.name));
+      if (existing) await tx.jobDocument.update({ where: { id: existing.id }, data: { required: d.required, isOutput: d.isOutput ?? false } });
+      else if (!have.has(key(d.name))) await tx.jobDocument.create({ data: { jobId, name: d.name, required: d.required, isOutput: d.isOutput ?? false } });
+    }
+
+    const stale = job.tasks.filter((t) => t.status === "TODO" && !t.notes && replaceableTasks.has(key(t.title)));
+    if (stale.length) await tx.jobTask.deleteMany({ where: { id: { in: stale.map((t) => t.id) } } });
+    const remaining = new Set(job.tasks.filter((t) => !stale.includes(t)).map((t) => key(t.title)));
+    const toCreate = proc.tasks.filter((t) => !remaining.has(key(t.title)));
+    if (toCreate.length) {
+      await tx.jobTask.createMany({
+        data: toCreate.map((t) => ({
+          jobId,
+          title: t.title,
+          assigneeId: job.responsibleId,
+          priority: job.priority,
+          dueDate: t.dueOffsetDays !== undefined ? new Date(now.getTime() + t.dueOffsetDays * 86_400_000) : null,
+        })),
+      });
+    }
+
+    await tx.job.update({ where: { id: jobId }, data: { details: { ...details, mode } as Prisma.InputJsonValue } });
+    await audit(tx, user, {
+      action: "JOB_ROUTE_SET",
+      module: "Jobs",
+      entityType: "Job",
+      entityId: jobId,
+      reference: job.jobNumber,
+      jobId,
+      message: `${job.jobNumber}: ${current ? "changed to" : "set to"} the ${procedureLabel(kind, mode).slice(2)} procedure${started ? " (stages restarted)" : ""}.`,
+      before: { mode: current, stages: job.stages.map((st) => `${st.name}: ${st.status}`) } as Prisma.InputJsonValue,
+      after: { mode, stages: proc.stages.map((st) => st.name) } as Prisma.InputJsonValue,
+    });
+  });
+  refresh(jobId);
   return ok;
 }

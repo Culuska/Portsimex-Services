@@ -17,6 +17,7 @@ import {
   slaState,
 } from "@/lib/job-rules";
 import { parseFields, SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
+import { FREIGHT_MODES, FREIGHT_MODE_ICONS, FREIGHT_MODE_LABELS, freightKindOf, jobFields, jobFreightMode, procedureLabel, stageHint } from "@/lib/freight-procedures";
 import { activeAgencies } from "@/lib/agencies";
 import { caseStatusLabel, deriveCaseStatus } from "@/lib/case-status";
 import { expiryState } from "@/lib/reminder-rules";
@@ -36,6 +37,7 @@ import {
   moveJobAction,
   receiveDocumentAction,
   setTaskStatusAction,
+  setFreightRouteAction,
   skipStageAction,
   unreceiveDocumentAction,
   updateJobAction,
@@ -93,12 +95,16 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const isManager = hasPermission(me.grant, "jobs.supervise");
   const fin = financialsOf(job);
   const details = detailsOf(job.details);
-  const fields = parseFields(job.service.fields);
+  const fields = jobFields(job.service.code, parseFields(job.service.fields), details);
+  const freightKind = freightKindOf(job.service.code);
+  const freightMode = jobFreightMode(details);
+  const workStarted = job.stages.some((s) => s.status === "DONE" || s.status === "SKIPPED");
   const stage = currentStage(job.stages);
   const missingDocs = missingRequiredDocuments(job.documents);
   const missingOutput = missingOutputDocuments(job.documents);
   const sla = slaState(job);
   const active = isJobActive(job.status);
+  const canSetRoute = !!freightKind && active && hasPermission(me.grant, "jobs.manage") && (!workStarted || isManager);
   const recon = job.service.reconcileQuantities ? reconcileQuantities(details) : null;
   const toComplete = active
     ? completionBlockers({ status: job.status, stages: job.stages, docs: job.documents, reconcile: job.service.reconcileQuantities, details })
@@ -203,7 +209,48 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         <div className="flex flex-col gap-6 xl:col-span-2">
           {/* Timeline */}
           <Card id="workflow">
-            <h2 className="mb-4 font-semibold text-zinc-900 dark:text-zinc-50">Operations -- stages</h2>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                Operations -- stages
+                {freightKind && freightMode && (
+                  <span className="ml-2 rounded-full bg-sky-100 px-2.5 py-0.5 align-middle text-xs font-semibold text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
+                    {procedureLabel(freightKind, freightMode)} procedure
+                  </span>
+                )}
+              </h2>
+              {freightKind && freightMode && canSetRoute && (
+                <SimpleActionButton
+                  action={setFreightRouteAction.bind(null, job.id, freightMode === "SEA" ? "AIR" : "SEA")}
+                  label={`Change to ${FREIGHT_MODE_LABELS[freightMode === "SEA" ? "AIR" : "SEA"]}`}
+                  className={btnSmall}
+                  confirmMessage={`Switch this job to the ${FREIGHT_MODE_LABELS[freightMode === "SEA" ? "AIR" : "SEA"]} procedure?${workStarted ? " The stages restart from the first step." : ""} Documents already received are kept.`}
+                />
+              )}
+            </div>
+            {freightKind && !freightMode && active && (
+              <div className="mb-5 rounded-lg border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950/30">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Is this shipment through the Airport or the Seaport?</p>
+                <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">
+                  Choose the route to load its standard procedure: the right stages, document checklist, tasks and shipment details.
+                  {workStarted && " Work has started, so the stages restart from the first step."}
+                </p>
+                {canSetRoute ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {FREIGHT_MODES.map((m) => (
+                      <SimpleActionButton
+                        key={m}
+                        action={setFreightRouteAction.bind(null, job.id, m)}
+                        label={`${FREIGHT_MODE_ICONS[m]}  ${FREIGHT_MODE_LABELS[m]}`}
+                        className={btnPrimary}
+                        confirmMessage={workStarted ? `Load the ${FREIGHT_MODE_LABELS[m]} procedure? The stages restart from the first step; documents already received are kept.` : undefined}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">Work has already started -- ask a manager to choose the route.</p>
+                )}
+              </div>
+            )}
             <ol className="flex flex-col">
               {timeline.map((t, i) => {
                 const st = job.stages.find((s) => s.name === t.label && t.state === "current");
@@ -231,6 +278,10 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                         {st?.requiresDocuments && <span className="ml-2 text-xs font-normal text-zinc-500">(needs complete documents)</span>}
                       </p>
                       {t.meta && <p className="text-xs text-zinc-500">{t.meta}</p>}
+                      {(() => {
+                        const hint = t.state !== "done" && t.state !== "skipped" ? stageHint(job.service.code, details, t.label) : null;
+                        return hint ? <p className={`mt-0.5 max-w-xl text-xs ${t.state === "current" ? "text-zinc-600 dark:text-zinc-400" : "text-zinc-400"}`}>{hint}</p> : null;
+                      })()}
                       {st && (
                         <div className="mt-2 flex flex-wrap items-start gap-2">
                           <ActionForm action={completeStageAction.bind(null, job.id, st.id)} submitLabel="Complete stage" className="flex flex-wrap items-start gap-2" buttonClassName={btnPrimary}>
