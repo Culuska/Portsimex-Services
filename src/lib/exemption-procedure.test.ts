@@ -57,3 +57,22 @@ describe("exemption ministry route", () => {
     expect(appendNote(one, "Waiting", d, null).split("\n")).toHaveLength(2);
   });
 });
+
+import { exemptionEvidenceBlocker } from "./exemption-procedure";
+describe("approval evidence", () => {
+  const doc = (name: string, received = false, waived = false) => ({ name, received, waived });
+  it("a ministry's return needs its clearance letter (a manager's waiver is accepted)", () => {
+    expect(exemptionEvidenceBlocker("Returned by Ministry of Health to Foreign Affairs", [doc("Ministry of Health clearance letter")])).toMatch(/evidence missing/);
+    expect(exemptionEvidenceBlocker("Returned by Ministry of Health to Foreign Affairs", [doc("Ministry of Health clearance letter", true)])).toBeNull();
+    expect(exemptionEvidenceBlocker("Returned by Ministry of Health to Foreign Affairs", [doc("Ministry of Health clearance letter", false, true)])).toBeNull();
+  });
+  it("final approval needs real evidence -- a waiver is not enough", () => {
+    const stage = "Exemption approved by Ministry of Finance";
+    expect(exemptionEvidenceBlocker(stage, [doc("Ministry of Finance approval letter", false, true)])).toMatch(/can't be marked approved/);
+    expect(exemptionEvidenceBlocker(stage, [doc("Ministry of Finance approval letter", true)])).toBeNull();
+    expect(exemptionEvidenceBlocker(stage, [doc("Tax exemption certificate", true)])).toBeNull();
+  });
+  it("other stages are not affected", () => {
+    expect(exemptionEvidenceBlocker("Ministry of Health review", [])).toBeNull();
+  });
+});

@@ -202,3 +202,15 @@ export function checkPaymentAuthorization(amount: number, threshold: number, can
   if (canAuthorize || amount <= threshold + EPS) return null;
   return `Payments over ${threshold.toFixed(2)} must be made by someone who can authorize payments (e.g. the Finance Manager).`;
 }
+
+export type CreditState = { limit: number; outstanding: number; after: number; available: number; over: boolean; near: boolean };
+
+/**
+ * Credit check for a customer: what they owe on issued invoices, plus an
+ * amount about to be added. "near" from 80% of the limit. No limit = null.
+ */
+export function creditState(limit: number | null, outstanding: number, adding = 0): CreditState | null {
+  if (limit === null || !(limit > 0)) return null;
+  const after = Math.round((outstanding + adding) * 100) / 100;
+  return { limit, outstanding, after, available: Math.round((limit - after) * 100) / 100, over: after > limit + 0.005, near: after >= limit * 0.8 };
+}

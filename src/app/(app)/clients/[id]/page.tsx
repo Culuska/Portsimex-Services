@@ -1,3 +1,4 @@
+import { creditState } from "@/lib/finance-rules";
 import { jobScopeWhere, requirePermission } from "@/lib/session";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -57,6 +58,7 @@ export default async function ClientDetailPage({
     .filter((i) => i.dueDate < today)
     .reduce((s, i) => s + Math.max(invoiceBalance(i), 0), 0);
   const outstanding = issued.reduce((s, i) => s + Math.max(invoiceBalance(i), 0), 0);
+  const creditCheck = creditState(client.creditLimit === null ? null : Number(client.creditLimit), outstanding);
   const credit = (await clientCredits(prisma, client.id)).reduce((s, c) => s + c.remaining, 0);
   const directCosts = Number(costs._sum.amount ?? 0);
   const grossProfit = revenue - directCosts;
@@ -92,6 +94,12 @@ export default async function ClientDetailPage({
         }
       />
 
+      {creditCheck && (creditCheck.over || creditCheck.near) && (
+        <p className={`mb-4 rounded-md px-4 py-3 text-sm ${creditCheck.over ? "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300" : "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"}`}>
+          {creditCheck.over ? "Over the credit limit" : "Close to the credit limit"}: owes {formatCurrency(creditCheck.outstanding)} of {formatCurrency(creditCheck.limit)}
+          {creditCheck.over ? ". New invoices need a manager to issue them." : ` (${formatCurrency(creditCheck.available)} left).`}
+        </p>
+      )}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-7">
         <StatCard label="Total revenue" value={formatCurrency(revenue)} hint="issued invoices" />
         <StatCard label="Direct costs" value={formatCurrency(directCosts)} />

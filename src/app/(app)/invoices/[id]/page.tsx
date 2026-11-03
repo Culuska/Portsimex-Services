@@ -11,6 +11,9 @@ import { invoiceBalance, invoiceTotals } from "@/lib/invoices";
 import { SERVICE_TYPE_LABELS } from "@/lib/services";
 import { activeMoneyAccounts, clientCredits, PAYMENT_METHOD_LABELS } from "@/lib/finance";
 import ActionForm, { fieldClass } from "@/components/ActionForm";
+import SimpleActionButton from "@/components/SimpleActionButton";
+import { creditState } from "@/lib/finance-rules";
+import { clientOutstanding } from "@/lib/finance";
 import {
   applyAdvanceAction,
   cancelInvoiceAction,
@@ -42,7 +45,9 @@ export default async function InvoiceDetailPage({
 
   const t = invoiceTotals(invoice);
   const balance = invoiceBalance(invoice);
-  const [moneyAccounts, credits] = await Promise.all([activeMoneyAccounts(), clientCredits(prisma, invoice.clientId)]);
+  const [moneyAccounts, credits, owed] = await Promise.all([activeMoneyAccounts(), clientCredits(prisma, invoice.clientId), clientOutstanding(prisma, invoice.clientId)]);
+  const credit =
+    invoice.status === "DRAFT" ? creditState(invoice.client.creditLimit === null ? null : Number(invoice.client.creditLimit), owed, t.total) : null;
   const open = invoice.status !== "CANCELLED";
   const overdue = open && balance > 0.005 && invoice.status !== "DRAFT" && invoice.dueDate < new Date(new Date().setHours(0, 0, 0, 0));
   const boundDelete = deleteDraftInvoiceAction.bind(null, invoice.id);
@@ -179,12 +184,14 @@ export default async function InvoiceDetailPage({
                   </label>
                 </ActionForm>
                 <p className="text-sm text-zinc-500">Draft -- not yet sent to the client and not in the accounts. Issuing it records the revenue.</p>
-                <div className="flex items-center gap-4">
-                  <form action={boundIssue}>
-                    <button type="submit" className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
-                      Issue invoice
-                    </button>
-                  </form>
+                {credit && (credit.over || credit.near) && (
+                  <p className={`rounded-md px-3 py-2 text-sm ${credit.over ? "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300" : "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"}`}>
+                    {credit.over ? "Over the credit limit" : "Close to the credit limit"}: {invoice.client.name} owes {formatCurrency(credit.outstanding)}; with this invoice {formatCurrency(credit.after)} against a limit of {formatCurrency(credit.limit)}.
+                    {credit.over && " Only a manager who can authorize payments can issue it."}
+                  </p>
+                )}
+                <div className="flex items-start gap-4">
+                  <SimpleActionButton action={boundIssue} label="Issue invoice" pendingLabel="Issuing..." />
                   {isSuperAdmin(me.role) && (
                     <form action={boundDelete}>
                       <button type="submit" className="text-sm text-red-600 hover:underline">

@@ -51,3 +51,20 @@ describe("freight procedures", () => {
     expect(stageHint("IMPORT_LOGISTICS", {}, "Delivery order from shipping line")).toBeNull();
   });
 });
+
+import { operationQueues, operationTypeOf } from "./freight-procedures";
+describe("operation queues and types", () => {
+  it("classifies jobs for the dashboard", () => {
+    expect(operationQueues({ serviceCode: "IMPORT_LOGISTICS", category: "LOGISTICS", details: { mode: "SEA" }, currentStage: "Customs declaration lodged" })).toEqual(["customs", "sea"]);
+    expect(operationQueues({ serviceCode: "IMPORT_LOGISTICS", category: "LOGISTICS", details: { mode: "AIR" }, currentStage: "Delivery to client" })).toEqual(["air"]);
+    expect(operationQueues({ serviceCode: "CUSTOMS_CLEARANCE", category: "LOGISTICS", details: {}, currentStage: null })).toEqual(["customs", "noroute"]);
+    expect(operationQueues({ serviceCode: "TAX_EXEMPTION", category: "GOVERNMENT_TAX", details: {}, currentStage: null })).toEqual(["exemption"]);
+    expect(operationQueues({ serviceCode: "DOMESTIC_TRANSPORT", category: "TRANSPORT", details: {}, currentStage: null })).toEqual(["transport"]);
+  });
+  it("names operation types for reports", () => {
+    expect(operationTypeOf("EXPORT_LOGISTICS", "Logistics", { mode: "AIR" })).toBe("Export · Air");
+    expect(operationTypeOf("IMPORT_LOGISTICS", "Logistics", {})).toBe("Import · route not set");
+    expect(operationTypeOf("TAX_EXEMPTION", "Government & Tax", {})).toBe("Tax / duty exemption");
+    expect(operationTypeOf("CAR_RENTAL", "Vehicle Services", {})).toBe("Vehicle Services");
+  });
+});

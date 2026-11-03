@@ -93,6 +93,7 @@ export function exemptionProcedure(route: LineMinistry[]): { stages: ExemptionSt
     { name: "Foreign Affairs forwarding letter", required: false },
     ...route.map((m) => ({ name: `${MINISTRY_NAMES[m]} clearance letter`, required: false })),
     { name: `Foreign Affairs letter to ${MOF}`, required: false },
+    { name: `${MOF} approval letter`, required: false },
     { name: "Tax exemption certificate", required: true, isOutput: true },
   ];
   return { stages, documents };
@@ -120,4 +121,26 @@ export function requesterSuggestions(route: LineMinistry[] | null): string[] {
 export function appendNote(existing: string | null, line: string, at: Date, by: string | null | undefined): string {
   const entry = `${at.toISOString().slice(0, 10)} · ${by ?? "Someone"}: ${line.trim()}`;
   return existing ? `${existing}\n${entry}` : entry;
+}
+
+type EvidenceDoc = { name: string; received: boolean; waived: boolean };
+
+/**
+ * Approval evidence rule: a ministry's "returned" step needs its clearance
+ * letter (received, or waived by a manager), and the final Finance approval
+ * needs the Finance approval letter or the exemption certificate actually
+ * received -- never waived. Returns the blocking message, or null.
+ */
+export function exemptionEvidenceBlocker(stageName: string, docs: EvidenceDoc[]): string | null {
+  const has = (name: string, allowWaiver: boolean) => docs.some((d) => d.name === name && (d.received || (allowWaiver && d.waived)));
+  for (const m of LINE_MINISTRIES) {
+    const ministry = MINISTRY_NAMES[m];
+    if (stageName === `Returned by ${ministry} to Foreign Affairs` && !has(`${ministry} clearance letter`, true)) {
+      return `Approval evidence missing: mark the "${ministry} clearance letter" as received (upload it) before completing this step.`;
+    }
+  }
+  if (stageName === `Exemption approved by ${MOF}` && !has(`${MOF} approval letter`, false) && !has("Tax exemption certificate", false)) {
+    return `Approval evidence missing: the exemption can't be marked approved until the "${MOF} approval letter" or the "Tax exemption certificate" is received.`;
+  }
+  return null;
 }

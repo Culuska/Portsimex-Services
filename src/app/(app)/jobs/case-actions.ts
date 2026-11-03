@@ -11,18 +11,25 @@ import { isJobActive, missingRequiredDocuments } from "@/lib/job-rules";
 import { canMoveSubmission, nextFollowUpFor, SUBMISSION_STATUS_LABELS, type SubmissionStatus } from "@/lib/submission-rules";
 import { dateValue, fillEmptyDetails } from "@/lib/case-details";
 import { STAGE_EVENTS, stagesToAutoComplete } from "@/lib/case-status";
+import { appendNote, exemptionEvidenceBlocker, isExemptionService } from "@/lib/exemption-procedure";
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 // Completes the workflow stages a case event covers (see STAGE_EVENTS) and
 // opens the next one, with an audit entry naming what moved.
 async function autoAdvance(tx: Tx, jobId: string, jobNumber: string, pattern: RegExp, user: { id: string; name?: string | null }, why: string) {
-  const stages = await tx.jobStage.findMany({ where: { jobId } });
-  const done = stagesToAutoComplete(stages, pattern);
+  const [stages, job] = await Promise.all([
+    tx.jobStage.findMany({ where: { jobId } }),
+    tx.job.findUniqueOrThrow({ where: { id: jobId }, select: { service: { select: { code: true } }, documents: { select: { name: true, received: true, waived: true } } } }),
+  ]);
+  const matched = stagesToAutoComplete(stages, pattern);
+  // Never auto-complete past a step whose approval evidence is missing.
+  const blockedAt = isExemptionService(job.service.code) ? matched.findIndex((s) => exemptionEvidenceBlocker(s.name, job.documents)) : -1;
+  const done = blockedAt >= 0 ? matched.slice(0, blockedAt) : matched;
   if (done.length === 0) return;
   const now = new Date();
   for (const s of done) {
-    await tx.jobStage.update({ where: { id: s.id }, data: { status: "DONE", completedAt: now, completedById: user.id, note: why } });
+    await tx.jobStage.update({ where: { id: s.id }, data: { status: "DONE", completedAt: now, completedById: user.id, note: appendNote(s.note, why, now, user.name) } });
   }
   const last = done[done.length - 1].position;
   const next = stages.filter((s) => s.position > last && s.status === "PENDING").sort((a, b) => a.position - b.position)[0];

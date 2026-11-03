@@ -8,8 +8,9 @@ import { requirePermission, requireSuperAdmin } from "@/lib/session";
 import { recognizeInvoiceRevenue, recordAdvanceReceipt, recordInvoicePaymentCash, reverseInvoiceRevenue } from "@/lib/ledger";
 import { nextFinanceNumber, nextInvoiceNumber } from "@/lib/numbering";
 import { invoiceBalance, invoiceGrandTotal, invoiceTotals } from "@/lib/invoices";
-import { businessDate, checkAdvanceApplication, FinanceRuleError, splitPayment } from "@/lib/finance-rules";
-import { advanceRemaining, syncInvoiceStatus } from "@/lib/finance";
+import { businessDate, checkAdvanceApplication, creditState, FinanceRuleError, splitPayment } from "@/lib/finance-rules";
+import { hasPermission } from "@/lib/permission-catalog";
+import { advanceRemaining, clientOutstanding, syncInvoiceStatus } from "@/lib/finance";
 import { audit } from "@/lib/audit";
 
 const paymentMethods = [
@@ -124,12 +125,20 @@ function refreshInvoice(id: string) {
 // Issuing an invoice is the accounting event: revenue is recognized the
 // moment it goes to the client, not when cash arrives (Dr Accounts
 // Receivable / Cr Service Revenue, Disbursements, Tax Payable).
-export async function issueInvoiceAction(id: string): Promise<void> {
+// Issuing posts revenue and adds to what the client owes. Over the client's
+// credit limit only someone who can authorize payments may issue it.
+export async function issueInvoiceAction(id: string): Promise<State> {
   const user = await requirePermission("invoices.manage");
+  const draft = await prisma.invoice.findUniqueOrThrow({ where: { id }, include: { items: true, client: true } });
+  if (draft.status !== "DRAFT") return ok;
+  if (draft.items.length === 0) return { error: "An invoice needs at least one line before it can be issued." };
+  const credit = creditState(draft.client.creditLimit === null ? null : Number(draft.client.creditLimit), await clientOutstanding(prisma, draft.clientId), invoiceGrandTotal(draft));
+  if (credit?.over && !hasPermission(user.grant, "payments.authorize")) {
+    return { error: `Over the credit limit: ${draft.client.name} would owe ${credit.after.toFixed(2)} against a limit of ${credit.limit.toFixed(2)}. A manager who can authorize payments must issue this invoice.` };
+  }
   await prisma.$transaction(async (tx) => {
     const inv = await tx.invoice.findUniqueOrThrow({ where: { id }, include: { items: true } });
     if (inv.status !== "DRAFT") return;
-    if (inv.items.length === 0) throw new Error("An invoice needs at least one line before it can be issued.");
     await tx.invoice.update({ where: { id }, data: { status: "SENT", issueDate: new Date() } });
     await recognizeInvoiceRevenue(tx, id, user.id);
     await audit(tx, user, {
@@ -138,10 +147,11 @@ export async function issueInvoiceAction(id: string): Promise<void> {
       entityType: "Invoice",
       entityId: id,
       reference: inv.invoiceNumber,
-      message: `Issued invoice ${inv.invoiceNumber} for ${invoiceGrandTotal(inv).toFixed(2)}.`,
+      message: `Issued invoice ${inv.invoiceNumber} for ${invoiceGrandTotal(inv).toFixed(2)}${credit?.over ? ` (over the client's credit limit of ${credit.limit.toFixed(2)}, approved by ${user.name})` : ""}.`,
     });
   });
   refreshInvoice(id);
+  return ok;
 }
 
 // Cancelling reverses the revenue entry. Anything already paid must be

@@ -3,7 +3,8 @@ import Link from "next/link";
 import { netLineAmount } from "@/lib/invoices";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/format";
-import { financialsOf, jobFinanceSelect } from "@/lib/jobs";
+import { detailsOf, financialsOf, jobFinanceSelect } from "@/lib/jobs";
+import { operationTypeOf } from "@/lib/freight-procedures";
 import { summarize, type ProfitRow } from "@/lib/job-finance";
 import { slaState } from "@/lib/job-rules";
 import { SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
@@ -66,6 +67,10 @@ export default async function ProfitabilityPage({ searchParams }: { searchParams
   };
   const byService = group((r) => r.job.serviceId, (r) => r.job.service.name);
   const byClient = group((r) => r.job.clientId, (r) => r.job.client.name);
+  const opType = (r: (typeof rows)[number]) => operationTypeOf(r.job.service.code, SERVICE_CATEGORY_LABELS[r.job.service.category], detailsOf(r.job.details));
+  const byOperation = group(opType, opType);
+  const monthOf = (r: (typeof rows)[number]) => `${r.job.startDate.getFullYear()}-${String(r.job.startDate.getMonth() + 1).padStart(2, "0")}`;
+  const byMonth = group(monthOf, (r) => r.job.startDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })).sort((a, b) => b.key.localeCompare(a.key));
   const topJobs = [...rows].sort((a, b) => b.f.invoiced - a.f.invoiced).slice(0, 25);
   const years = [new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2];
 
@@ -118,6 +123,8 @@ export default async function ProfitabilityPage({ searchParams }: { searchParams
       </Card>
 
       <div className="mb-6 grid grid-cols-1 gap-6">
+        <Breakdown title="By operation type (import / export, air / sea)" rows={byOperation} />
+        <Breakdown title="By month (job start)" rows={byMonth} />
         <Breakdown title="By client" rows={byClient} hrefOf={(k) => `/clients/${k}`} />
         <Breakdown title="By service" rows={byService} />
       </div>
@@ -187,7 +194,7 @@ function Breakdown({ title, rows, hrefOf }: { title: string; rows: (ProfitRow & 
           </tr>
         </thead>
         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-          {rows.slice(0, 20).map((r) => (
+          {rows.slice(0, 24).map((r) => (
             <tr key={r.key}>
               <td className="px-4 py-2">
                 {hrefOf ? <Link href={hrefOf(r.key)} className="text-zinc-900 hover:underline dark:text-zinc-50">{r.label}</Link> : r.label}

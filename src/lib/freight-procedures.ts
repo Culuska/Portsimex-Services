@@ -332,3 +332,42 @@ export function jobFields(serviceCode: string, serviceFields: FieldTemplate[], d
   const mode = jobFreightMode(details);
   return kind && mode ? freightProcedure(kind, mode).fields : serviceFields;
 }
+
+/**
+ * Operation type of a job for reporting and dashboards:
+ * "Import · Sea", "Export · Air", "Customs clearance · Sea", "Import · route not set"...
+ * Other services report under their own category label.
+ */
+export function operationTypeOf(serviceCode: string, categoryLabel: string, details: Record<string, unknown>): string {
+  const kind = freightKindOf(serviceCode);
+  if (!kind) return serviceCode === "TAX_EXEMPTION" ? "Tax / duty exemption" : categoryLabel;
+  const mode = jobFreightMode(details);
+  const k = kind === "IMPORT" ? "Import" : kind === "EXPORT" ? "Export" : "Customs clearance";
+  return `${k} · ${mode ? (mode === "SEA" ? "Sea" : "Air") : "route not set"}`;
+}
+
+export const OPERATION_QUEUES = {
+  customs: "Pending customs clearance",
+  exemption: "Pending tax exemptions",
+  air: "Airport handling",
+  sea: "Seaport handling",
+  transport: "Freight & transport",
+  noroute: "Route not chosen",
+} as const;
+export type OperationQueue = keyof typeof OPERATION_QUEUES;
+
+const CUSTOMS_STEP = /customs|dut(y|ies)|declaration|inspection|examination/i;
+
+/** Which operational queues an active job belongs to (a job can be in several). */
+export function operationQueues(job: { serviceCode: string; category: string; details: Record<string, unknown>; currentStage: string | null }): OperationQueue[] {
+  const out: OperationQueue[] = [];
+  const kind = freightKindOf(job.serviceCode);
+  const mode = jobFreightMode(job.details);
+  if (job.serviceCode === "TAX_EXEMPTION") out.push("exemption");
+  if (kind === "CLEARANCE" || (kind && job.currentStage && CUSTOMS_STEP.test(job.currentStage))) out.push("customs");
+  if (kind && mode === "AIR") out.push("air");
+  if (kind && mode === "SEA") out.push("sea");
+  if (kind && !mode) out.push("noroute");
+  if (job.category === "TRANSPORT") out.push("transport");
+  return out;
+}

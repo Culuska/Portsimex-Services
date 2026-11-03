@@ -281,3 +281,17 @@ describe("xlsx writer", () => {
     expect(text).toContain("<v>1234.5</v>");
   });
 });
+
+import { creditState } from "./finance-rules";
+describe("credit limit", () => {
+  it("no limit means no check", () => {
+    expect(creditState(null, 500)).toBeNull();
+    expect(creditState(0, 500)).toBeNull();
+  });
+  it("warns near the limit and flags going over", () => {
+    expect(creditState(1000, 700)).toMatchObject({ over: false, near: false, available: 300 });
+    expect(creditState(1000, 700, 150)).toMatchObject({ over: false, near: true, after: 850 });
+    expect(creditState(1000, 700, 301)).toMatchObject({ over: true, available: -1 });
+    expect(creditState(1000, 1000)).toMatchObject({ over: false, near: true });
+  });
+});

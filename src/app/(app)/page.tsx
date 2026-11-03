@@ -3,10 +3,11 @@ import { redirect } from "next/navigation";
 import { jobScopeWhere, requireUser } from "@/lib/session";
 import { hasPermission } from "@/lib/permission-catalog";
 import { isFullAccessRole } from "@/lib/roles";
+import { OPERATION_QUEUES, operationQueues, type OperationQueue } from "@/lib/freight-procedures";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { invoiceBalance } from "@/lib/invoices";
-import { financialsOf, jobFinanceSelect, jobJourneySelect, journeyFactsOf } from "@/lib/jobs";
+import { detailsOf, financialsOf, jobFinanceSelect, jobJourneySelect, journeyFactsOf } from "@/lib/jobs";
 import { jobStep, readyToClose } from "@/lib/journey";
 import Pipeline, { type PipelineColumn } from "./Pipeline";
 import { summarize } from "@/lib/job-finance";
@@ -41,7 +42,7 @@ export default async function DashboardPage() {
   const [activeJobs, myTasks, awaitingRequests, pendingExpenses, invoices, balances, yearJobs, followUpsDue, docsExpiring, completedJobs, closedThisMonth] = await Promise.all([
     prisma.job.findMany({
       where: { status: { in: ["OPEN", "IN_PROGRESS", "WAITING"] }, ...scope },
-      include: { client: true, service: true, responsible: true, documents: true },
+      include: { client: true, service: true, responsible: true, documents: true, stages: { where: { status: "IN_PROGRESS" }, select: { name: true } } },
       orderBy: { dueDate: { sort: "asc", nulls: "last" } },
     }),
     prisma.jobTask.findMany({
@@ -215,6 +216,12 @@ export default async function DashboardPage() {
   const mySteps = columns.filter((c) => c.mine).map((c) => c.label.toLowerCase());
   const myStepsLabel = mySteps.length ? mySteps.join(", ") : null;
 
+  const queueCounts = Object.fromEntries((Object.keys(OPERATION_QUEUES) as OperationQueue[]).map((k) => [k, 0])) as Record<OperationQueue, number>;
+  for (const j of activeJobs) {
+    for (const q of operationQueues({ serviceCode: j.service.code, category: j.service.category, details: detailsOf(j.details), currentStage: j.stages[0]?.name ?? null })) queueCounts[q] += 1;
+  }
+  const activeCustomers = can("clients.view") ? await prisma.client.count({ where: { stage: "ACTIVE" } }) : null;
+
   return (
     <div>
       <div className="mb-6">
@@ -230,6 +237,16 @@ export default async function DashboardPage() {
 
       {can("jobs.view") && (
         <>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Operations in progress</h2>
+          <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+            {activeCustomers !== null && <Tile href="/clients" label="Active customers" value={activeCustomers} />}
+            <Tile href="/jobs?op=customs" label={OPERATION_QUEUES.customs} value={queueCounts.customs} />
+            <Tile href="/jobs?op=exemption" label={OPERATION_QUEUES.exemption} value={queueCounts.exemption} />
+            <Tile href="/jobs?op=air" label={`✈ ${OPERATION_QUEUES.air}`} value={queueCounts.air} />
+            <Tile href="/jobs?op=sea" label={`⚓ ${OPERATION_QUEUES.sea}`} value={queueCounts.sea} />
+            <Tile href="/jobs?op=transport" label={OPERATION_QUEUES.transport} value={queueCounts.transport} />
+            {queueCounts.noroute > 0 && <Tile href="/jobs?op=noroute" label="Freight jobs without a route" value={queueCounts.noroute} tone="amber" />}
+          </div>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Needs attention</h2>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
             <Tile href="/jobs?f=overdue" label="Overdue jobs" value={overdue.length} tone={overdue.length ? "red" : undefined} />

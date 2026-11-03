@@ -4,7 +4,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 import { missingRequiredDocuments, slaState } from "@/lib/job-rules";
-import { jobFinanceSelect, journeyFactsOf } from "@/lib/jobs";
+import { detailsOf, jobFinanceSelect, journeyFactsOf } from "@/lib/jobs";
+import { OPERATION_QUEUES, operationQueues, type OperationQueue } from "@/lib/freight-procedures";
 import { jobNextAction, jobStep, readyToClose, type StepKey } from "@/lib/journey";
 import { SERVICE_CATEGORIES, SERVICE_CATEGORY_LABELS, type ServiceCategory } from "@/lib/service-templates";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
@@ -74,10 +75,11 @@ const FILTERS = [
   ["all", "All"],
 ] as const;
 
-export default async function JobsPage({ searchParams }: { searchParams: Promise<{ f?: string; cat?: string; mine?: string; q?: string }> }) {
+export default async function JobsPage({ searchParams }: { searchParams: Promise<{ f?: string; cat?: string; mine?: string; q?: string; op?: string }> }) {
   const me = await requirePermission("jobs.view");
   const session = { user: me };
-  const { f = "active", cat, mine, q } = await searchParams;
+  const { f = "active", cat, mine, q, op } = await searchParams;
+  const queue = op && op in OPERATION_QUEUES ? (op as OperationQueue) : undefined;
   const category = SERVICE_CATEGORIES.includes(cat as ServiceCategory) ? (cat as ServiceCategory) : undefined;
 
   const where: Prisma.JobWhereInput = {
@@ -102,11 +104,21 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
     })
     .filter((r) =>
       f === "billing" ? r.step === "billing" : f === "payment" ? r.step === "payment" : f === "closing" ? readyToClose(r.facts) : true,
+    )
+    .filter(
+      (r) =>
+        !queue ||
+        operationQueues({
+          serviceCode: r.j.service.code,
+          category: r.j.service.category,
+          details: detailsOf(r.j.details),
+          currentStage: r.j.stages.find((st) => st.status === "IN_PROGRESS")?.name ?? null,
+        }).includes(queue),
     );
 
   const qs = (patch: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const merged = { f, cat, mine, q, ...patch };
+    const merged = { f, cat, mine, q, op: queue, ...patch };
     for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
     return `/jobs?${p.toString()}`;
   };
@@ -123,6 +135,13 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
       <div className="mb-3 flex flex-wrap gap-2">
         {FILTERS.map(([key, label]) => (
           <Link key={key} href={qs({ f: key })} className={chip(f === key)}>{label}</Link>
+        ))}
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-zinc-500">Operation:</span>
+        <Link href={qs({ op: undefined })} className={chip(!queue)}>Any</Link>
+        {(Object.keys(OPERATION_QUEUES) as OperationQueue[]).map((k) => (
+          <Link key={k} href={qs({ op: k })} className={chip(queue === k)}>{OPERATION_QUEUES[k]}</Link>
         ))}
       </div>
       <div className="mb-4 flex flex-wrap items-center gap-2">

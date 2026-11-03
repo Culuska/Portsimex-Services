@@ -21,7 +21,7 @@ import {
   JobRuleError,
 } from "@/lib/job-rules";
 import { parseFields, parseTasks } from "@/lib/service-templates";
-import { appendNote, exemptionProcedure, isExemptionService, jobExemptionRoute, linkedExemptionNumber, parseRoute, routeLabel, canHaveLinkedExemption } from "@/lib/exemption-procedure";
+import { appendNote, exemptionEvidenceBlocker, exemptionProcedure, isExemptionService, jobExemptionRoute, linkedExemptionNumber, parseRoute, routeLabel, canHaveLinkedExemption } from "@/lib/exemption-procedure";
 import { createJob } from "@/lib/jobs";
 import { redirect } from "next/navigation";
 import type { DocumentTemplate } from "@/lib/service-templates";
@@ -161,7 +161,7 @@ export async function completeStageAction(jobId: string, stageId: string, _prev:
   const job = await loadJob(jobId);
   const stage = job.stages.find((s) => s.id === stageId);
   if (!stage) return { error: "Stage not found." };
-  const blocker = checkCompleteStage(stage, job.stages, job.documents, job.status);
+  const blocker = checkCompleteStage(stage, job.stages, job.documents, job.status) ?? (isExemptionService(job.service.code) ? exemptionEvidenceBlocker(stage.name, job.documents) : null);
   if (blocker) return { error: blocker };
   const note = String(formData.get("note") ?? "").trim() || null;
   await advanceStage(job, stage, "DONE", user, note);
@@ -268,7 +268,7 @@ export async function receiveDocumentAction(jobId: string, docId: string, _prev:
       const done = stagesToAutoComplete(stages, STAGE_EVENTS.OUTPUT_RECEIVED);
       if (done.length > 0) {
         const now = new Date();
-        for (const s of done) await tx.jobStage.update({ where: { id: s.id }, data: { status: "DONE", completedAt: now, completedById: user.id, note: `${doc.name} received` } });
+        for (const s of done) await tx.jobStage.update({ where: { id: s.id }, data: { status: "DONE", completedAt: now, completedById: user.id, note: appendNote(s.note, `${doc.name} received`, now, user.name) } });
         const last = done[done.length - 1].position;
         const next = stages.filter((s) => s.position > last && s.status === "PENDING").sort((a, b) => a.position - b.position)[0];
         if (next) await tx.jobStage.update({ where: { id: next.id }, data: { status: "IN_PROGRESS", startedAt: now } });

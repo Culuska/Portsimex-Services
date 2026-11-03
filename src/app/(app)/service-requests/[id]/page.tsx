@@ -4,6 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { activeServices } from "@/lib/catalog";
+import { creditState } from "@/lib/finance-rules";
+import { clientOutstanding } from "@/lib/finance";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { allowedRequestMoves, MANAGER_ONLY } from "@/lib/request-rules";
 import { SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
@@ -43,6 +45,7 @@ export default async function ServiceRequestPage({ params }: { params: Promise<{
     prisma.auditLog.findMany({ where: { entityType: "ServiceRequest", entityId: id }, orderBy: { createdAt: "desc" }, take: 30 }),
   ]);
   if (!sr) notFound();
+  const credit = creditState(sr.client.creditLimit === null ? null : Number(sr.client.creditLimit), await clientOutstanding(prisma, sr.clientId));
   const isManager = hasPermission(me.grant, "requests.approve");
   const moves = allowedRequestMoves(sr.status).filter((m) => isManager || !MANAGER_ONLY.includes(m));
   const canOpenJobs = ["APPROVED", "IN_PROGRESS", "WAITING", "COMPLETED"].includes(sr.status);
@@ -65,6 +68,12 @@ export default async function ServiceRequestPage({ params }: { params: Promise<{
           ...sr.lines.filter((l) => l.job).map((l) => ({ label: l.job!.jobNumber, href: `/jobs/${l.job!.id}`, sub: "job" })),
         ]}
       />
+      {credit && (credit.over || credit.near) && (
+        <p className={`mb-4 rounded-md px-4 py-3 text-sm ${credit.over ? "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300" : "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"}`}>
+          {credit.over ? "Customer over the credit limit" : "Customer close to the credit limit"}: {sr.client.name} owes {formatCurrency(credit.outstanding)} of {formatCurrency(credit.limit)}.
+          {credit.over ? " Check with finance before approving new work." : ""}
+        </p>
+      )}
       <PageHeader
         title={sr.requestNumber}
         description={`${sr.client.name} · requested ${formatDate(sr.requestDate)}${sr.createdBy ? ` · logged by ${sr.createdBy.name}` : ""}`}

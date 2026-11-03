@@ -1,7 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ensureDefaultMoneyAccount } from "@/lib/ledger";
-import { invoiceGrandTotal, invoicePaid } from "@/lib/invoices";
+import { invoiceBalance, invoiceGrandTotal, invoicePaid } from "@/lib/invoices";
 import { advanceBalance, billStatus } from "@/lib/finance-rules";
 
 type Tx = Prisma.TransactionClient;
@@ -117,4 +117,13 @@ export function endOfDay(d: Date) {
 
 export function isoDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** What a client owes on issued (not draft / cancelled) invoices. */
+export async function clientOutstanding(db: Tx | typeof prisma, clientId: string): Promise<number> {
+  const invoices = await db.invoice.findMany({
+    where: { clientId, status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] } },
+    include: { items: true, payments: true },
+  });
+  return invoices.reduce((s, i) => s + Math.max(invoiceBalance(i), 0), 0);
 }
