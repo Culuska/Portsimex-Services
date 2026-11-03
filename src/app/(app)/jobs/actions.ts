@@ -21,6 +21,10 @@ import {
   JobRuleError,
 } from "@/lib/job-rules";
 import { parseFields, parseTasks } from "@/lib/service-templates";
+import { appendNote, exemptionProcedure, isExemptionService, jobExemptionRoute, linkedExemptionNumber, parseRoute, routeLabel, canHaveLinkedExemption } from "@/lib/exemption-procedure";
+import { createJob } from "@/lib/jobs";
+import { redirect } from "next/navigation";
+import type { DocumentTemplate } from "@/lib/service-templates";
 import { FREIGHT_MODES, freightKindOf, freightProcedure, isFreightMode, jobFields, jobFreightMode, procedureLabel } from "@/lib/freight-procedures";
 import { dateValue, fillEmptyDetails } from "@/lib/case-details";
 import { STAGE_EVENTS, stagesToAutoComplete } from "@/lib/case-status";
@@ -186,8 +190,12 @@ async function advanceStage(
 ) {
   const now = new Date();
   const next = [...job.stages].sort((a, b) => a.position - b.position).find((s) => s.position > stage.position && s.status === "PENDING");
+  const previousNote = job.stages.find((s) => s.id === stage.id)?.note ?? null;
   await prisma.$transaction(async (tx) => {
-    await tx.jobStage.update({ where: { id: stage.id }, data: { status: outcome, completedAt: now, completedById: user.id, note } });
+    await tx.jobStage.update({
+      where: { id: stage.id },
+      data: { status: outcome, completedAt: now, completedById: user.id, note: note ? appendNote(previousNote, note, now, user.name) : previousNote },
+    });
     if (next) await tx.jobStage.update({ where: { id: next.id }, data: { status: "IN_PROGRESS", startedAt: now } });
     if (job.status === "OPEN") await tx.job.update({ where: { id: job.id }, data: { status: "IN_PROGRESS" } });
     await audit(tx, user, {
@@ -616,38 +624,13 @@ export async function setFreightRouteAction(jobId: string, mode: string): Promis
   const proc = freightProcedure(kind, mode);
   const now = new Date();
   const key = (n: string) => n.trim().toLowerCase();
-  const newDocNames = new Set(proc.documents.map((d) => key(d.name)));
   // Open checklist items from the generic template or the other route are replaced.
   const replaceableTasks = new Set(
     [...parseTasks(job.service.tasks), ...FREIGHT_MODES.flatMap((m) => freightProcedure(kind, m).tasks)].map((t) => key(t.title)),
   );
 
   await prisma.$transaction(async (tx) => {
-    await tx.jobStage.deleteMany({ where: { jobId } });
-    await tx.jobStage.createMany({
-      data: proc.stages.map((st, i) => ({
-        jobId,
-        position: i,
-        name: st.name,
-        requiresDocuments: st.requiresDocuments ?? false,
-        status: i === 0 ? "IN_PROGRESS" : "PENDING",
-        startedAt: i === 0 ? now : null,
-      })),
-    });
-
-    for (const d of job.documents) {
-      const kept = d.received || d.waived || !!d.fileUrl;
-      const inNew = newDocNames.has(key(d.name));
-      if (!kept && !inNew) await tx.jobDocument.delete({ where: { id: d.id } });
-      // A received document the new procedure doesn't list no longer blocks anything.
-      else if (kept && !inNew && (d.required || d.isOutput)) await tx.jobDocument.update({ where: { id: d.id }, data: { required: false, isOutput: false } });
-    }
-    const have = new Set(job.documents.filter((d) => d.received || d.waived || d.fileUrl || newDocNames.has(key(d.name))).map((d) => key(d.name)));
-    for (const d of proc.documents) {
-      const existing = job.documents.find((x) => key(x.name) === key(d.name));
-      if (existing) await tx.jobDocument.update({ where: { id: existing.id }, data: { required: d.required, isOutput: d.isOutput ?? false } });
-      else if (!have.has(key(d.name))) await tx.jobDocument.create({ data: { jobId, name: d.name, required: d.required, isOutput: d.isOutput ?? false } });
-    }
+    await replaceWorkflow(tx, job, proc.stages, proc.documents, now);
 
     const stale = job.tasks.filter((t) => t.status === "TODO" && !t.notes && replaceableTasks.has(key(t.title)));
     if (stale.length) await tx.jobTask.deleteMany({ where: { id: { in: stale.map((t) => t.id) } } });
@@ -676,6 +659,170 @@ export async function setFreightRouteAction(jobId: string, mode: string): Promis
       message: `${job.jobNumber}: ${current ? "changed to" : "set to"} the ${procedureLabel(kind, mode).slice(2)} procedure${started ? " (stages restarted)" : ""}.`,
       before: { mode: current, stages: job.stages.map((st) => `${st.name}: ${st.status}`) } as Prisma.InputJsonValue,
       after: { mode, stages: proc.stages.map((st) => st.name) } as Prisma.InputJsonValue,
+    });
+  });
+  refresh(jobId);
+  return ok;
+}
+
+type WorkflowJob = {
+  id: string;
+  stages: { status: string }[];
+  documents: { id: string; name: string; required: boolean; isOutput: boolean; received: boolean; waived: boolean; fileUrl: string | null }[];
+};
+
+// Replaces a job's stages (restarting at the first) and document checklist.
+// Documents already received, waived or uploaded are always kept; any of
+// those the new checklist doesn't list stop blocking completion.
+async function replaceWorkflow(tx: Prisma.TransactionClient, job: WorkflowJob, stages: { name: string; requiresDocuments?: boolean }[], documents: DocumentTemplate[], now: Date) {
+  const key = (n: string) => n.trim().toLowerCase();
+  const newDocNames = new Set(documents.map((d) => key(d.name)));
+  await tx.jobStage.deleteMany({ where: { jobId: job.id } });
+  await tx.jobStage.createMany({
+    data: stages.map((st, i) => ({
+      jobId: job.id,
+      position: i,
+      name: st.name,
+      requiresDocuments: st.requiresDocuments ?? false,
+      status: i === 0 ? "IN_PROGRESS" : "PENDING",
+      startedAt: i === 0 ? now : null,
+    })),
+  });
+  for (const d of job.documents) {
+    const kept = d.received || d.waived || !!d.fileUrl;
+    const inNew = newDocNames.has(key(d.name));
+    if (!kept && !inNew) await tx.jobDocument.delete({ where: { id: d.id } });
+    else if (kept && !inNew && (d.required || d.isOutput)) await tx.jobDocument.update({ where: { id: d.id }, data: { required: false, isOutput: false } });
+  }
+  for (const d of documents) {
+    const existing = job.documents.find((x) => key(x.name) === key(d.name));
+    if (existing) await tx.jobDocument.update({ where: { id: existing.id }, data: { required: d.required, isOutput: d.isOutput ?? false } });
+    else await tx.jobDocument.create({ data: { jobId: job.id, name: d.name, required: d.required, isOutput: d.isOutput ?? false } });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Duty / tax exemption: ministry route
+// ---------------------------------------------------------------------------
+
+export async function setExemptionRouteAction(jobId: string, _prev: State, formData: FormData): Promise<State> {
+  const user = await requireJobAccess(jobId, "jobs.manage");
+  const job = await prisma.job.findUniqueOrThrow({ where: { id: jobId }, include: { stages: true, documents: true, service: true } });
+  if (!isExemptionService(job.service.code)) return { error: "This job is not a tax / duty exemption." };
+  if (!isJobActive(job.status)) return { error: `The job is ${job.status.toLowerCase()}.` };
+  const route = parseRoute(formData.getAll("ministries"));
+  const details = detailsOf(job.details);
+  const current = jobExemptionRoute(details);
+  if (current && current.join() === route.join()) return { error: "The job already follows that route." };
+  const started = job.stages.some((st) => st.status === "DONE" || st.status === "SKIPPED");
+  if (started && !hasPermission(user.grant, "jobs.supervise")) {
+    return { error: "Work has already started on this case -- ask a manager to change the ministry route (the stages restart)." };
+  }
+  const proc = exemptionProcedure(route);
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await replaceWorkflow(tx, job, proc.stages, proc.documents, now);
+    await tx.job.update({ where: { id: jobId }, data: { details: { ...details, exemptionRoute: route } as Prisma.InputJsonValue } });
+    await audit(tx, user, {
+      action: "JOB_ROUTE_SET",
+      module: "Jobs",
+      entityType: "Job",
+      entityId: jobId,
+      reference: job.jobNumber,
+      jobId,
+      message: `${job.jobNumber}: ministry route ${current ? "changed to" : "set to"} ${routeLabel(route)}${started ? " (stages restarted)" : ""}.`,
+      before: { route: current, stages: job.stages.map((st) => `${st.name}: ${st.status}`) } as Prisma.InputJsonValue,
+      after: { route, stages: proc.stages.map((st) => st.name) } as Prisma.InputJsonValue,
+    });
+  });
+  refresh(jobId);
+  return ok;
+}
+
+// An exemption for a cargo / transport operation: same client and request,
+// numbered after the operation (JOB-LOG-2026-0004-EX).
+export async function createLinkedExemptionAction(parentJobId: string): Promise<State> {
+  const user = await requireJobAccess(parentJobId, "jobs.manage");
+  const parent = await prisma.job.findUniqueOrThrow({ where: { id: parentJobId }, include: { service: true } });
+  if (!canHaveLinkedExemption(parent.service.category)) return { error: "Exemptions are linked to cargo or transport operations." };
+  if (parent.status === "CANCELLED") return { error: "The operation is cancelled." };
+  const service = await prisma.serviceDefinition.findFirst({ where: { code: "TAX_EXEMPTION", active: true } });
+  if (!service) return { error: "The Tax Exemption service is not in the service catalog (or is switched off)." };
+  const taken = new Set((await prisma.job.findMany({ where: { jobNumber: { startsWith: `${parent.jobNumber}-EX` } }, select: { jobNumber: true } })).map((j) => j.jobNumber));
+  const created = await prisma.$transaction((tx) =>
+    createJob(tx, user, {
+      clientId: parent.clientId,
+      serviceId: service.id,
+      title: `Tax / duty exemption — ${parent.title}`,
+      priority: parent.priority,
+      responsibleId: parent.responsibleId,
+      serviceRequestId: parent.serviceRequestId,
+      jobNumber: linkedExemptionNumber(parent.jobNumber, taken),
+      details: { linkedJobId: parent.id },
+    }),
+  );
+  refresh(parentJobId);
+  redirect(`/jobs/${created.id}`);
+}
+
+// ---------------------------------------------------------------------------
+// Stage notes and missing-document requests (any stage, any job)
+// ---------------------------------------------------------------------------
+
+export async function addStageNoteAction(jobId: string, stageId: string, _prev: State, formData: FormData): Promise<State> {
+  const user = await requireJobAccess(jobId, "jobs.manage");
+  const text = String(formData.get("text") ?? "").trim().slice(0, 2000);
+  if (!text) return { error: "Write the note first." };
+  const job = await loadJob(jobId);
+  const stage = job.stages.find((st) => st.id === stageId);
+  if (!stage) return { error: "Stage not found." };
+  if (job.status === "CLOSED" || job.status === "CANCELLED") return { error: `The job is ${job.status.toLowerCase()}.` };
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.jobStage.update({ where: { id: stageId }, data: { note: appendNote(stage.note, text, now, user.name) } });
+    await audit(tx, user, { action: "JOB_STAGE_NOTE", module: "Jobs", entityType: "Job", entityId: jobId, reference: job.jobNumber, jobId, message: `${job.jobNumber}, "${stage.name}": ${text}` });
+  });
+  refresh(jobId);
+  return ok;
+}
+
+export async function requestMissingDocumentsAction(jobId: string, stageId: string, _prev: State, formData: FormData): Promise<State> {
+  const user = await requireJobAccess(jobId, "jobs.manage");
+  const requestedBy = String(formData.get("requestedBy") ?? "").trim().slice(0, 120);
+  const items = String(formData.get("items") ?? "")
+    .split("\n")
+    .map((l) => l.trim().slice(0, 150))
+    .filter(Boolean);
+  if (!requestedBy) return { error: "Who is asking? (e.g. Ministry of Health)" };
+  if (items.length === 0) return { error: "Write what is missing -- one document per line." };
+  const job = await loadJob(jobId);
+  const stage = job.stages.find((st) => st.id === stageId);
+  if (!stage) return { error: "Stage not found." };
+  if (!isJobActive(job.status)) return { error: `The job is ${job.status.toLowerCase()}.` };
+  const have = new Set(job.documents.map((d) => d.name.trim().toLowerCase()));
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    for (const item of items) {
+      if (have.has(item.toLowerCase())) {
+        // Already on the checklist: make sure it is required and not received yet.
+        const d = job.documents.find((x) => x.name.trim().toLowerCase() === item.toLowerCase())!;
+        if (!d.received) await tx.jobDocument.update({ where: { id: d.id }, data: { required: true, waived: false, waivedReason: null, note: `Requested by ${requestedBy}` } });
+      } else {
+        await tx.jobDocument.create({ data: { jobId, name: item, required: true, note: `Requested by ${requestedBy}` } });
+      }
+    }
+    await tx.jobStage.update({
+      where: { id: stageId },
+      data: { note: appendNote(stage.note, `⚠ Missing documents requested by ${requestedBy}: ${items.join("; ")}`, now, user.name) },
+    });
+    await audit(tx, user, {
+      action: "JOB_DOCUMENTS_REQUESTED",
+      module: "Jobs",
+      entityType: "Job",
+      entityId: jobId,
+      reference: job.jobNumber,
+      jobId,
+      message: `${job.jobNumber}: ${requestedBy} asked for ${items.join(", ")} (stage "${stage.name}").`,
     });
   });
   refresh(jobId);

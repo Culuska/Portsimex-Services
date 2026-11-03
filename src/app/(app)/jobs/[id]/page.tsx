@@ -17,6 +17,7 @@ import {
   slaState,
 } from "@/lib/job-rules";
 import { parseFields, SERVICE_CATEGORY_LABELS } from "@/lib/service-templates";
+import { canHaveLinkedExemption, exemptionStageHint, isExemptionService, jobExemptionRoute, LINE_MINISTRIES, MINISTRY_NAMES, requesterSuggestions, routeLabel } from "@/lib/exemption-procedure";
 import { FREIGHT_MODES, FREIGHT_MODE_ICONS, FREIGHT_MODE_LABELS, freightKindOf, jobFields, jobFreightMode, procedureLabel, stageHint } from "@/lib/freight-procedures";
 import { activeAgencies } from "@/lib/agencies";
 import { caseStatusLabel, deriveCaseStatus } from "@/lib/case-status";
@@ -37,6 +38,10 @@ import {
   moveJobAction,
   receiveDocumentAction,
   setTaskStatusAction,
+  addStageNoteAction,
+  createLinkedExemptionAction,
+  requestMissingDocumentsAction,
+  setExemptionRouteAction,
   setFreightRouteAction,
   skipStageAction,
   unreceiveDocumentAction,
@@ -105,6 +110,17 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const sla = slaState(job);
   const active = isJobActive(job.status);
   const canSetRoute = !!freightKind && active && hasPermission(me.grant, "jobs.manage") && (!workStarted || isManager);
+  const isExemption = isExemptionService(job.service.code);
+  const exemptionRoute = isExemption ? jobExemptionRoute(details) : null;
+  const canSetExemptionRoute = isExemption && active && hasPermission(me.grant, "jobs.manage") && (!workStarted || isManager);
+  const canWork = active && hasPermission(me.grant, "jobs.manage");
+  const linkedJobId = typeof details.linkedJobId === "string" ? details.linkedJobId : null;
+  const [parentOperation, linkedExemptions] = await Promise.all([
+    linkedJobId ? prisma.job.findUnique({ where: { id: linkedJobId }, select: { id: true, jobNumber: true, title: true } }) : Promise.resolve(null),
+    canHaveLinkedExemption(job.service.category)
+      ? prisma.job.findMany({ where: { details: { path: ["linkedJobId"], equals: job.id } }, select: { id: true, jobNumber: true, status: true }, orderBy: { createdAt: "asc" } })
+      : Promise.resolve([]),
+  ]);
   const recon = job.service.reconcileQuantities ? reconcileQuantities(details) : null;
   const toComplete = active
     ? completionBlockers({ status: job.status, stages: job.stages, docs: job.documents, reconcile: job.service.reconcileQuantities, details })
@@ -119,8 +135,9 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const journey = jobJourney(journeyFactsOf(job), { hasRequest: !!job.serviceRequest });
   const jobInvoices = [...new Map(lineRows.map((l) => [l.invoice.id, l.invoice])).values()];
 
-  const timeline: { label: string; state: "done" | "current" | "pending" | "skipped"; meta?: string }[] = [
+  const timeline: { label: string; state: "done" | "current" | "pending" | "skipped"; meta?: string; notes?: string[] }[] = [
     ...job.stages.map((s) => ({
+      notes: s.note ? s.note.split("\n").filter(Boolean) : [],
       label: s.name,
       state: (s.status === "DONE" ? "done" : s.status === "SKIPPED" ? "skipped" : s.id === stage?.id && active ? "current" : "pending") as "done" | "current" | "pending" | "skipped",
       meta: s.completedAt ? `${formatDate(s.completedAt)}${s.completedBy ? ` · ${s.completedBy.name}` : ""}` : undefined,
@@ -134,6 +151,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         items={[
           { label: job.client.name, href: `/clients/${job.clientId}` },
           ...(job.serviceRequest ? [{ label: job.serviceRequest.requestNumber, href: `/service-requests/${job.serviceRequest.id}`, sub: "request" }] : []),
+          ...(parentOperation ? [{ label: parentOperation.jobNumber, href: `/jobs/${parentOperation.id}`, sub: "operation" }] : []),
           { label: job.jobNumber, sub: "job" },
           ...jobInvoices.map((inv) => ({ label: inv.invoiceNumber, href: `/invoices/${inv.id}`, sub: inv.status === "DRAFT" ? "draft invoice" : "invoice" })),
         ]}
@@ -251,6 +269,38 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                 )}
               </div>
             )}
+            {isExemption && exemptionRoute && (
+              <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+                <span className="rounded-full bg-violet-100 px-2.5 py-0.5 font-semibold text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">Ministry route</span>
+                <span className="text-zinc-600 dark:text-zinc-400">{routeLabel(exemptionRoute)}</span>
+              </div>
+            )}
+            {isExemption && active && (!exemptionRoute || canSetExemptionRoute) && (
+              <details open={!exemptionRoute} className="mb-5 rounded-lg border border-violet-200 bg-violet-50 p-4 dark:border-violet-900 dark:bg-violet-950/30">
+                <summary className="cursor-pointer text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  {exemptionRoute ? "Change the ministry route" : "Which ministries must review this exemption?"}
+                </summary>
+                <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                  The file always goes to the Ministry of Foreign Affairs first. Tick each related ministry: Foreign Affairs forwards it there and it comes back to Foreign Affairs, which then writes to the Ministry of Finance for the final decision. Tick none if only Finance is involved.
+                  {workStarted && " Work has started, so the stages restart from the first step; documents already received are kept."}
+                </p>
+                {canSetExemptionRoute ? (
+                  <ActionForm action={setExemptionRouteAction.bind(null, job.id)} submitLabel={exemptionRoute ? "Change route" : "Load ministry route"} className="mt-3 flex flex-col gap-3" buttonClassName={btnPrimary}>
+                    <div className="flex flex-wrap gap-2">
+                      {LINE_MINISTRIES.map((m) => (
+                        <label key={m} className="flex cursor-pointer items-center gap-2 rounded-full border border-zinc-300 bg-white px-3 py-1 text-sm has-[:checked]:border-violet-500 has-[:checked]:bg-violet-100 dark:border-zinc-700 dark:bg-zinc-900 dark:has-[:checked]:bg-violet-900/40">
+                          <input type="checkbox" name="ministries" value={m} defaultChecked={exemptionRoute?.includes(m)} />
+                          {MINISTRY_NAMES[m]}
+                        </label>
+                      ))}
+                      <span className="self-center text-xs text-zinc-500">→ then {MINISTRY_NAMES.FINANCE}</span>
+                    </div>
+                  </ActionForm>
+                ) : (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">Work has already started -- ask a manager to choose the route.</p>
+                )}
+              </details>
+            )}
             <ol className="flex flex-col">
               {timeline.map((t, i) => {
                 const st = job.stages.find((s) => s.name === t.label && t.state === "current");
@@ -279,15 +329,56 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                       </p>
                       {t.meta && <p className="text-xs text-zinc-500">{t.meta}</p>}
                       {(() => {
-                        const hint = t.state !== "done" && t.state !== "skipped" ? stageHint(job.service.code, details, t.label) : null;
+                        const hint = t.state !== "done" && t.state !== "skipped" ? (stageHint(job.service.code, details, t.label) ?? (isExemption ? exemptionStageHint(details, t.label) : null)) : null;
                         return hint ? <p className={`mt-0.5 max-w-xl text-xs ${t.state === "current" ? "text-zinc-600 dark:text-zinc-400" : "text-zinc-400"}`}>{hint}</p> : null;
                       })()}
+                      {t.notes && t.notes.length > 0 && (
+                        <ul className="mt-1.5 flex max-w-xl flex-col gap-1">
+                          {t.notes.map((n, k) => (
+                            <li
+                              key={k}
+                              className={`rounded px-2 py-1 text-xs ${n.includes("⚠") ? "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" : "bg-zinc-50 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400"}`}
+                            >
+                              {n}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                       {st && (
-                        <div className="mt-2 flex flex-wrap items-start gap-2">
-                          <ActionForm action={completeStageAction.bind(null, job.id, st.id)} submitLabel="Complete stage" className="flex flex-wrap items-start gap-2" buttonClassName={btnPrimary}>
-                            <input name="note" placeholder="Note (optional)" className={fieldClass} />
-                          </ActionForm>
-                          {isManager && <SimpleActionButton action={skipStageAction.bind(null, job.id, st.id)} label="Skip" className={btn} confirmMessage={`Skip "${st.name}"?`} />}
+                        <div className="mt-2 flex flex-col gap-2">
+                          <div className="flex flex-wrap items-start gap-2">
+                            <ActionForm action={completeStageAction.bind(null, job.id, st.id)} submitLabel="Complete stage" className="flex flex-wrap items-start gap-2" buttonClassName={btnPrimary}>
+                              <input name="note" placeholder="Note (optional)" className={fieldClass} />
+                            </ActionForm>
+                            {isManager && <SimpleActionButton action={skipStageAction.bind(null, job.id, st.id)} label="Skip" className={btn} confirmMessage={`Skip "${st.name}"?`} />}
+                          </div>
+                          {canWork && (
+                            <div className="flex flex-wrap gap-2">
+                              <details className="group">
+                                <summary className={`${btnSmall} cursor-pointer list-none`}>✎ Add note</summary>
+                                <div className="mt-2 w-80 max-w-full">
+                                  <ActionForm action={addStageNoteAction.bind(null, job.id, st.id)} submitLabel="Save note" buttonClassName={btnPrimary}>
+                                    <textarea name="text" rows={2} required placeholder="What happened, who you spoke to, what is still missing…" className={fieldClass} />
+                                  </ActionForm>
+                                </div>
+                              </details>
+                              <details className="group">
+                                <summary className={`${btnSmall} cursor-pointer list-none border-amber-300 text-amber-800 dark:border-amber-800 dark:text-amber-300`}>⚠ Missing documents requested</summary>
+                                <div className="mt-2 w-80 max-w-full">
+                                  <ActionForm action={requestMissingDocumentsAction.bind(null, job.id, st.id)} submitLabel="Record missing documents" buttonClassName={btnPrimary}>
+                                    <input name="requestedBy" required list={`requesters-${st.id}`} placeholder="Requested by (e.g. Ministry of Health)" className={fieldClass} />
+                                    <datalist id={`requesters-${st.id}`}>
+                                      {requesterSuggestions(exemptionRoute).map((r) => (
+                                        <option key={r} value={r} />
+                                      ))}
+                                    </datalist>
+                                    <textarea name="items" rows={3} required placeholder={"What is missing -- one per line\ne.g. Signed end-user certificate"} className={fieldClass} />
+                                    <p className="text-xs text-zinc-500">Each line is added to the document checklist as required, and noted on this stage.</p>
+                                  </ActionForm>
+                                </div>
+                              </details>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -541,6 +632,31 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         </div>
 
         <div className="flex flex-col gap-6">
+          {canHaveLinkedExemption(job.service.category) && (
+            <Card>
+              <h2 className="mb-1 font-semibold text-zinc-900 dark:text-zinc-50">Duty / tax exemption</h2>
+              {linkedExemptions.length > 0 ? (
+                <ul className="mb-3 flex flex-col gap-1 text-sm">
+                  {linkedExemptions.map((x) => (
+                    <li key={x.id} className="flex items-center justify-between gap-2">
+                      <Link href={`/jobs/${x.id}`} className="font-medium text-brand-600 hover:underline">{x.jobNumber}</Link>
+                      <Badge status={x.status} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mb-3 text-xs text-zinc-500">No exemption for this shipment. If the client is exempt from duty / tax, open one here -- it takes this job&apos;s number ({job.jobNumber}-EX).</p>
+              )}
+              {canWork && (
+                <SimpleActionButton
+                  action={createLinkedExemptionAction.bind(null, job.id)}
+                  label={linkedExemptions.length ? "Request another exemption" : "Request exemption for this shipment"}
+                  className={btn}
+                  confirmMessage={`Open a duty / tax exemption case for ${job.jobNumber}?`}
+                />
+              )}
+            </Card>
+          )}
           {/* At a glance -- the questions management asks */}
           <Card>
             <h2 className="mb-3 font-semibold text-zinc-900 dark:text-zinc-50">At a glance</h2>

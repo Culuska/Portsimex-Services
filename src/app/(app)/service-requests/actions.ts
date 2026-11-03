@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/session";
 import { hasPermission } from "@/lib/permission-catalog";
 import { audit } from "@/lib/audit";
 import { nextServiceRequestNumber } from "@/lib/numbering";
+import { canHaveLinkedExemption, isExemptionService, linkedExemptionNumber } from "@/lib/exemption-procedure";
 import { createJob, syncServiceRequestStatus } from "@/lib/jobs";
 import { canMoveRequest, MANAGER_ONLY, type RequestStatus } from "@/lib/request-rules";
 
@@ -113,10 +114,22 @@ async function openJobsForRequest(tx: Tx, user: { id: string; name?: string | nu
     where: { id: srId },
     include: { lines: { include: { job: true, service: true } } },
   });
-  const lines = sr.lines.filter((l) => !l.job && (!lineId || l.id === lineId));
+  // Operations first, so an exemption on the same request can take the
+  // cargo operation's number (JOB-LOG-2026-0004 -> JOB-LOG-2026-0004-EX).
+  const lines = sr.lines
+    .filter((l) => !l.job && (!lineId || l.id === lineId))
+    .sort((a, b) => Number(isExemptionService(a.service.code)) - Number(isExemptionService(b.service.code)));
   const count = sr.lines.length;
+  const operations = sr.lines.filter((l) => l.job && canHaveLinkedExemption(l.service.category)).map((l) => l.job!);
   for (const line of lines) {
-    await createJob(tx, user, {
+    const parent = isExemptionService(line.service.code) ? operations[0] : undefined;
+    let link: { jobNumber: string; details: Record<string, unknown> } | undefined;
+    if (parent) {
+      const taken = new Set((await tx.job.findMany({ where: { jobNumber: { startsWith: `${parent.jobNumber}-EX` } }, select: { jobNumber: true } })).map((j) => j.jobNumber));
+      link = { jobNumber: linkedExemptionNumber(parent.jobNumber, taken), details: { linkedJobId: parent.id } };
+    }
+    const job = await createJob(tx, user, {
+      ...(link ?? {}),
       clientId: sr.clientId,
       serviceId: line.serviceId,
       description: [sr.description, line.notes].filter(Boolean).join("\n\n"),
@@ -130,6 +143,7 @@ async function openJobsForRequest(tx: Tx, user: { id: string; name?: string | nu
       estimatedRevenue: count === 1 && sr.estimatedRevenue ? Number(sr.estimatedRevenue) : null,
       estimatedCost: count === 1 && sr.estimatedCost ? Number(sr.estimatedCost) : null,
     });
+    if (canHaveLinkedExemption(line.service.category)) operations.push(job);
   }
   await syncServiceRequestStatus(tx, sr.id);
 }

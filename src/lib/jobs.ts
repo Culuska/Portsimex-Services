@@ -29,12 +29,15 @@ export async function createJob(
     requestLineId?: string | null;
     estimatedRevenue?: number | null;
     estimatedCost?: number | null;
+    /** Override the numbering, e.g. an exemption sharing its operation's number. */
+    jobNumber?: string;
+    details?: Record<string, unknown>;
   },
 ) {
   const service = await tx.serviceDefinition.findUniqueOrThrow({ where: { id: input.serviceId } });
   const client = await tx.client.findUniqueOrThrow({ where: { id: input.clientId }, select: { name: true } });
   const start = new Date();
-  const jobNumber = await nextJobNumber(tx, service.jobPrefix);
+  const jobNumber = input.jobNumber ?? (await nextJobNumber(tx, service.jobPrefix));
   const stages = parseStages(service.stages);
   const docs = parseDocuments(service.documents);
   const tasks = parseTasks(service.tasks);
@@ -54,6 +57,7 @@ export async function createJob(
       responsibleId: input.responsibleId ?? null,
       estimatedRevenue: input.estimatedRevenue ?? null,
       estimatedCost: input.estimatedCost ?? null,
+      ...(input.details ? { details: input.details as Prisma.InputJsonValue } : {}),
       stages: {
         create: stages.map((s, i) => ({
           position: i,
