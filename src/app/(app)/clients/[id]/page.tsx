@@ -326,7 +326,7 @@ export default async function ClientDetailPage({
                   <li key={d.id} className="flex items-center justify-between gap-3 py-2">
                     <span className="text-zinc-700 dark:text-zinc-300">
                       {d.fileUrl ? (
-                        <a href={d.fileUrl} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">{d.name}</a>
+                        <a href={`/files/job-document/${d.id}`} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">{d.name}</a>
                       ) : (
                         d.name
                       )}

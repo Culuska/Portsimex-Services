@@ -39,7 +39,7 @@ export default async function SupplierBillPage({ params }: { params: Promise<{ i
         {bill.attachmentUrl && (
           <>
             {" · "}
-            <a href={bill.attachmentUrl} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">
+            <a href={`/files/supplier-bill/${bill.id}`} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">
               View bill copy{bill.attachmentName ? ` (${bill.attachmentName})` : ""}
             </a>
           </>

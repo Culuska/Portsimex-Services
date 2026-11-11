@@ -14,7 +14,8 @@ const ROLE_HOME: Record<string, string> = {
   MINISTRY_REGISTRAR: "/ministries",
   LOGISTICS_STAFF: "/deliveries",
 };
-const ALWAYS_ALLOWED_PREFIXES = ["/notifications", "/login", "/account", "/change-password", "/no-access", "/verify-email"];
+// /files checks access to each file itself (vendors and ministry officers open their own documents).
+const ALWAYS_ALLOWED_PREFIXES = ["/files/", "/notifications", "/login", "/account", "/change-password", "/no-access", "/verify-email"];
 // Reachable without signing in (password reset and email verification links).
 const PUBLIC_PREFIXES = ["/forgot-password", "/reset-password", "/verify-email"];
 

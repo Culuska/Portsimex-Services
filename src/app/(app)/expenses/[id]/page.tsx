@@ -99,7 +99,7 @@ export default async function ExpenseDetailPage({
                 </>
               )}
               {expense.receiptUrl && (
-                <a href={expense.receiptUrl} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">
+                <a href={`/files/expense-receipt/${expense.id}`} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">
                   View receipt{expense.receiptName ? ` (${expense.receiptName})` : ""}
                 </a>
               )}

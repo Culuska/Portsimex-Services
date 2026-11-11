@@ -422,7 +422,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                           {d.fileUrl && (
                             <>
                               {" · "}
-                              <a href={d.fileUrl} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">{d.fileName ?? "file"}</a>
+                              <a href={`/files/job-document/${d.id}`} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">{d.fileName ?? "file"}</a>
                             </>
                           )}
                         </p>

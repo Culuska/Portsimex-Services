@@ -72,7 +72,7 @@ export default async function MinistryStepPage({
                     {doc.versions.map((v) => (
                       <li key={v.id} className="text-xs text-zinc-500">
                         <a
-                          href={v.fileUrl}
+                          href={`/files/clearance/${v.id}`}
                           target="_blank"
                           rel="noreferrer"
                           className="text-brand-700 hover:underline dark:text-brand-300"
