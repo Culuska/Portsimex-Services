@@ -280,7 +280,7 @@ const GENERIC_LOGISTICS: Family = {
     { name: "Completion confirmation" },
   ],
   documents: [
-    { name: "Client instructions / documents", required: true },
+    { name: "Client instructions / documents", required: false },
     { name: "Completion document", required: true, isOutput: true },
   ],
   tasks: [
